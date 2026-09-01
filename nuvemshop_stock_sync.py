@@ -33,9 +33,11 @@ import json
 import logging
 import os
 import re
+import signal
 import sys
 import time
 import unicodedata
+from contextlib import contextmanager
 from difflib import SequenceMatcher
 from urllib.parse import quote_plus
 
@@ -133,8 +135,12 @@ class NuvemshopClient:
             url = f"{self.base_url}/products"
             params = {"published": "true", "page": page, "per_page": per_page}
             try:
-                resp = requests.get(url, headers=self.headers, params=params, timeout=self.timeout)
+                with hard_timeout(self.timeout + 10):
+                    resp = requests.get(url, headers=self.headers, params=params, timeout=self.timeout)
                 resp.raise_for_status()
+            except HardTimeout as e:
+                logging.error("Timeout absoluto ao buscar produtos da Nuvemshop (pagina %s): %s", page, e)
+                break
             except requests.RequestException as e:
                 logging.error("Falha ao buscar produtos da Nuvemshop (pagina %s): %s", page, e)
                 break
@@ -156,9 +162,13 @@ class NuvemshopClient:
         url = f"{self.base_url}/products/{product_id}"
         payload = {"published": published}
         try:
-            resp = requests.put(url, headers=self.headers, json=payload, timeout=self.timeout)
+            with hard_timeout(self.timeout + 10):
+                resp = requests.put(url, headers=self.headers, json=payload, timeout=self.timeout)
             resp.raise_for_status()
             return True
+        except HardTimeout as e:
+            logging.error("Timeout absoluto ao atualizar produto %s na Nuvemshop: %s", product_id, e)
+            return False
         except requests.RequestException as e:
             logging.error("Falha ao atualizar produto %s na Nuvemshop: %s", product_id, e)
             return False
@@ -168,12 +178,48 @@ class NuvemshopClient:
 # Checagem no site do fornecedor
 # --------------------------------------------------------------------------
 
+class HardTimeout(Exception):
+    """Levantada quando uma operacao ultrapassa o tempo maximo absoluto,
+    mesmo que o timeout normal do requests nao tenha disparado (alguns
+    servidores 'vazam' dados devagar o suficiente para escapar do timeout
+    de leitura padrao - conhecido como slowloris)."""
+
+
+@contextmanager
+def hard_timeout(seconds: int):
+    """Watchdog baseado em signal.alarm: garante que o bloco de codigo dentro
+    do 'with' nunca trava por mais que 'seconds', não importa a causa.
+    Funciona em Linux/macOS (inclusive nos runners do GitHub Actions).
+    Em plataformas sem suporte a SIGALRM (ex: Windows), vira um no-op."""
+    if not hasattr(signal, "SIGALRM"):
+        yield  # Windows nao suporta SIGALRM - roda sem watchdog nesse caso
+        return
+
+    def _handler(signum, frame):
+        raise HardTimeout(f"Operacao excedeu o limite absoluto de {seconds}s")
+
+    previous_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+
 def fetch_html(url: str, timeout: int, user_agent: str):
     """Busca uma URL e devolve (status_code, BeautifulSoup ou None).
     Nunca levanta excecao para fora - qualquer problema vira log + None."""
     headers = {"User-Agent": user_agent or "Mozilla/5.0 (compatible; StockSyncBot/1.0)"}
     try:
-        resp = requests.get(url, headers=headers, timeout=timeout)
+        # Timeout absoluto = timeout normal + margem de seguranca. Protege contra
+        # requisicoes que "vazam" bytes devagar e conseguem escapar do timeout
+        # padrao do requests (que reseta a cada pedaco de dado recebido).
+        with hard_timeout(timeout + 10):
+            resp = requests.get(url, headers=headers, timeout=timeout)
+    except HardTimeout as e:
+        logging.warning("Timeout absoluto ao acessar %s: %s", url, e)
+        return None, None
     except requests.RequestException as e:
         logging.warning("Erro de rede ao acessar %s: %s", url, e)
         return None, None
