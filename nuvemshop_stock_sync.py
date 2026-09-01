@@ -331,7 +331,10 @@ def check_product_page_stock(url: str, brand_cfg: dict, settings: dict, user_age
 # Fluxo principal
 # --------------------------------------------------------------------------
 
-def process_product(product: dict, brands_config: dict, settings: dict, user_agent: str, client: NuvemshopClient):
+def process_product(product: dict, brands_config: dict, settings: dict, user_agent: str, client: NuvemshopClient) -> bool:
+    """Processa um produto. Retorna True se fez alguma chamada de rede (para o
+    chamador saber se vale a pena aplicar o intervalo de espera entre produtos),
+    False se o produto foi pulado sem nenhuma requisicao externa."""
     product_id = product.get("id")
     # Titulo pode vir em varios idiomas: pega o primeiro disponivel (pt preferencial)
     name_field = product.get("name", {})
@@ -340,13 +343,13 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
 
     if not product_title:
         logging.warning("Produto %s sem titulo legivel, pulando.", product_id)
-        return
+        return False
 
     brand_key, brand_cfg = detect_brand(product_title, brands_config)
     if not brand_cfg:
         logging.info("[%s] '%s' - marca nao mapeada no config.json, pulando (mapeie manualmente se necessario).",
                      product_id, product_title)
-        return
+        return False
 
     logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
 
@@ -355,7 +358,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
     except Exception as e:
         # Rede caiu, site mudou de estrutura, etc. Nunca deixa isso derrubar o script.
         logging.error("[%s] Erro inesperado buscando no site da marca: %s", product_id, e)
-        return
+        return True
 
     min_similarity = settings.get("min_title_similarity", 0.6)
 
@@ -365,7 +368,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
         logging.info("[%s] Nao encontrado no site da marca %s -> desativar. %s",
                      product_id, brand_cfg["display_name"], found_desc)
         deactivate_product(product_id, product_title, settings, client)
-        return
+        return True
 
     logging.info("[%s] Encontrado: '%s' (similaridade=%.2f) -> %s",
                  product_id, result["title"], result["similarity"], result["url"])
@@ -374,7 +377,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
         in_stock = check_product_page_stock(result["url"], brand_cfg, settings, user_agent)
     except Exception as e:
         logging.error("[%s] Erro inesperado checando estoque na pagina do produto: %s", product_id, e)
-        return
+        return True
 
     if in_stock is False:
         logging.info("[%s] Marcado como ESGOTADO no site da marca -> desativar.", product_id)
@@ -386,6 +389,8 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
     else:
         logging.info("[%s] Nao foi possivel confirmar o status de estoque com certeza - "
                      "nenhuma acao tomada (revise manualmente).", product_id)
+
+    return True
 
 
 def deactivate_product(product_id: int, product_title: str, settings: dict, client: NuvemshopClient):
@@ -429,15 +434,35 @@ def main():
         logging.warning("Nenhum produto ativo retornado pela API. Encerrando.")
         return
 
-    for product in products:
+    # SISTEMA DE DEADLINE: para graciosamente se o tempo estiver acabando.
+    # GitHub Actions com timeout-minutes: 25 = 1500 segundos.
+    # Deixa 5 min de margem pra finalizacao limpa = 1200 seg (20 min).
+    start_time = time.time()
+    deadline_seconds = 20 * 60  # 20 minutos (margem de 5 min antes do timeout de 25 min)
+    total_products = len(products)
+
+    for idx, product in enumerate(products, 1):
+        # Checa se ja passou do deadline ANTES de processar mais um produto
+        elapsed = time.time() - start_time
+        if elapsed > deadline_seconds:
+            logging.warning(
+                f"=== DEADLINE ATINGIDO: {elapsed:.0f}s decorridos (limite: {deadline_seconds}s). "
+                f"Parando graciosamente. Processados {idx-1}/{total_products} produtos. ==="
+            )
+            break
+        
         try:
-            process_product(product, config["brands"], settings, user_agent, client)
+            made_network_call = process_product(product, config["brands"], settings, user_agent, client)
         except Exception as e:
             # Ultima linha de defesa: um produto com problema nunca para os demais.
             logging.error("Erro nao tratado processando produto %s: %s", product.get("id"), e)
-        time.sleep(settings.get("delay_between_requests_seconds", 2))
+            made_network_call = True  # por seguranca, aplica o intervalo mesmo assim
 
-    logging.info("=== Sincronizacao concluida ===")
+        if made_network_call:
+            time.sleep(settings.get("delay_between_requests_seconds", 2))
+
+    elapsed_final = time.time() - start_time
+    logging.info(f"=== Sincronizacao concluida === (tempo total: {elapsed_final:.0f}s)")
 
 
 if __name__ == "__main__":
