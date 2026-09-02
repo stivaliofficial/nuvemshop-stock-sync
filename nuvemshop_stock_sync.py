@@ -398,6 +398,8 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
         "matched": matched,
         "in_stock": in_stock,
     }
+
+
 def process_product(product: dict, brands_config: dict, settings: dict, user_agent: str, client: NuvemshopClient) -> bool:
     """Processa um produto. Retorna True se fez alguma chamada de rede (para o
     chamador saber se vale a pena aplicar o intervalo de espera entre produtos),
@@ -418,7 +420,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
                      product_id, product_title)
         return False
 
-       logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
+    logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
 
     if brand_cfg.get("strategy") == "shopify_products_json":
         try:
@@ -546,7 +548,7 @@ def main():
                 f"Parando graciosamente. Processados {idx-1}/{total_products} produtos. ==="
             )
             break
-        
+
         try:
             made_network_call = process_product(product, config["brands"], settings, user_agent, client)
         except Exception as e:
