@@ -331,6 +331,73 @@ def check_product_page_stock(url: str, brand_cfg: dict, settings: dict, user_age
 # Fluxo principal
 # --------------------------------------------------------------------------
 
+def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent: str, max_pages: int = 20):
+    """Baixa o catalogo completo de uma loja Shopify via o endpoint publico
+    /products.json (paginado). Alternativa mais confiavel do que raspar HTML
+    quando a busca do site depende de JavaScript para mostrar resultados."""
+    headers = {"User-Agent": user_agent or "Mozilla/5.0 (compatible; StockSyncBot/1.0)"}
+    separator = "&" if "?" in base_products_json_url else "?"
+    all_products = []
+    for page in range(1, max_pages + 1):
+        url = f"{base_products_json_url}{separator}page={page}"
+        try:
+            with hard_timeout(timeout + 10):
+                resp = requests.get(url, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+        except HardTimeout as e:
+            logging.warning("Timeout absoluto ao acessar %s: %s", url, e)
+            break
+        except requests.RequestException as e:
+            logging.warning("Erro de rede ao acessar %s: %s", url, e)
+            break
+        try:
+            data = resp.json()
+        except ValueError:
+            logging.warning("Resposta nao-JSON em %s, parando paginacao.", url)
+            break
+        batch = data.get("products", [])
+        if not batch:
+            break
+        all_products.extend(batch)
+        page_size_hint = 30
+        if len(batch) < page_size_hint:
+            break
+    return all_products
+
+
+def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: dict, user_agent: str):
+    """Estrategia alternativa para lojas Shopify cuja pagina de busca depende
+    de JavaScript. Baixa o catalogo via /products.json e decide disponibilidade
+    comparando titulos diretamente (sem precisar abrir a pagina do produto)."""
+    products_json_url = brand_cfg["products_json_url"]
+    all_products = fetch_shopify_products(products_json_url, settings["request_timeout_seconds"], user_agent)
+
+    if not all_products:
+        logging.warning("Nao foi possivel carregar o catalogo via products.json: %s", products_json_url)
+        return None
+
+    best_product, best_score = None, 0.0
+    for p in all_products:
+        score = title_similarity(product_title, p.get("title", ""))
+        if score > best_score:
+            best_product, best_score = p, score
+
+    if best_product is None:
+        return None
+
+    min_similarity = settings.get("min_title_similarity", 0.6)
+    matched = best_score >= min_similarity
+    in_stock = None
+    if matched:
+        variants = best_product.get("variants", [])
+        in_stock = any(v.get("available") for v in variants) if variants else None
+
+    return {
+        "title": best_product.get("title", ""),
+        "similarity": best_score,
+        "matched": matched,
+        "in_stock": in_stock,
+    }
 def process_product(product: dict, brands_config: dict, settings: dict, user_agent: str, client: NuvemshopClient) -> bool:
     """Processa um produto. Retorna True se fez alguma chamada de rede (para o
     chamador saber se vale a pena aplicar o intervalo de espera entre produtos),
@@ -351,7 +418,36 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
                      product_id, product_title)
         return False
 
-    logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
+       logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
+
+    if brand_cfg.get("strategy") == "shopify_products_json":
+        try:
+            sj_result = search_shopify_products_json(product_title, brand_cfg, settings, user_agent)
+        except Exception as e:
+            logging.error("[%s] Erro inesperado consultando products.json da marca: %s", product_id, e)
+            return True
+
+        if sj_result is None or not sj_result["matched"]:
+            found_desc = (f"(melhor match: '{sj_result['title']}' score={sj_result['similarity']:.2f})"
+                          if sj_result else "(catalogo indisponivel)")
+            logging.info("[%s] Nao encontrado no catalogo Shopify da marca %s -> desativar. %s",
+                         product_id, brand_cfg["display_name"], found_desc)
+            deactivate_product(product_id, product_title, settings, client)
+            return True
+
+        logging.info("[%s] Encontrado no catalogo: '%s' (similaridade=%.2f)",
+                     product_id, sj_result["title"], sj_result["similarity"])
+
+        if sj_result["in_stock"] is False:
+            logging.info("[%s] Sem variantes disponiveis no catalogo -> desativar.", product_id)
+            deactivate_product(product_id, product_title, settings, client)
+        elif sj_result["in_stock"] is True:
+            logging.info("[%s] Disponivel no catalogo Shopify.", product_id)
+            if settings.get("auto_reenable_if_back_in_stock") and not product.get("published", True):
+                reactivate_product(product_id, product_title, settings, client)
+        else:
+            logging.info("[%s] Nao foi possivel confirmar disponibilidade com certeza - nenhuma acao tomada.", product_id)
+        return True
 
     try:
         result = search_brand_site(product_title, brand_cfg, settings, user_agent)
