@@ -36,13 +36,11 @@
       "buy_button_keywords": ["comprar", "a\u00f1adir a la bolsa"],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
-    "new rock": {
+  "new rock": {
       "display_name": "New Rock",
-      "search_url_template": "https://newrock.com/en/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.grid-view-item__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "out of stock"],
-      "buy_button_keywords": ["a\u00f1adir a la cesta", "add to cart"],
-      "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
+      "strategy": "shopify_products_json",
+      "products_json_url": "https://newrock.com/products.json?limit=250",
+      "_nota": "Site usa busca via JavaScript (nao aparece em requests simples); usamos o endpoint publico products.json da Shopify em vez de raspar a pagina de busca."
     },
     "balenciaga": {
       "display_name": "Balenciaga",
