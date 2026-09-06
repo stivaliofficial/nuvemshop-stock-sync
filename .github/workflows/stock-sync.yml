@@ -9,7 +9,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 25  # forca o cancelamento se travar por qualquer motivo
+    timeout-minutes: 90  # forca o cancelamento se travar por qualquer motivo
     steps:
       - name: Checkout do repositorio
         uses: actions/checkout@v4
