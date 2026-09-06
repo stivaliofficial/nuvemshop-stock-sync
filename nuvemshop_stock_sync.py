@@ -27,6 +27,13 @@ IMPORTANTE:
 - Como a correspondencia e feita por similaridade de titulo (nao por SKU/link
   exato), ela e uma HEURISTICA. Revise o log das primeiras execucoes antes de
   confiar 100% no modo automatico (dry_run=false).
+- Se a busca no site da marca FALHAR (bloqueio anti-bot, timeout, erro de
+  rede, resposta 404/403 inesperada), o produto NUNCA e desativado por causa
+  disso - o script trata como "nao foi possivel confirmar" e pede revisao
+  manual. So desativa quando a busca funcionou de verdade e nao achou nada
+  parecido o suficiente. Isso evita, por exemplo, que uma marca inteira seja
+  desativada soh porque o site dela passou a bloquear scraping (caso real:
+  Rick Owens, atras de protecao Cloudflare, devolvendo 404 em toda busca).
 """
 
 import json
@@ -50,6 +57,14 @@ from bs4 import BeautifulSoup
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 NUVEMSHOP_API_BASE = "https://api.nuvemshop.com.br/v1"
+
+# Sinalizador usado para distinguir "buscamos e nao achamos nada parecido" (produto
+# realmente saiu de linha, seguro desativar) de "nao conseguimos nem fazer a busca"
+# (site bloqueou/caiu/deu timeout - NAO e seguro desativar, e um falso positivo).
+# Marcas atras de protecao anti-bot (ex: Rick Owens, que devolve a pagina "checking
+# your browser..." do Cloudflare) sao o caso classico: toda busca falha com 404/403,
+# e sem essa distincao o script desativaria a marca inteira por engano.
+SEARCH_UNAVAILABLE = object()
 
 
 def load_config(path: str = CONFIG_PATH) -> dict:
@@ -251,15 +266,17 @@ def fetch_html(url: str, timeout: int, user_agent: str):
 
 def search_brand_site(product_title: str, brand_cfg: dict, settings: dict, user_agent: str):
     """Pesquisa o titulo do produto no site da marca e retorna o melhor
-    resultado encontrado como dict: {"title": str, "url": str, "similarity": float}
-    ou None se nada relevante foi encontrado."""
+    resultado encontrado como dict: {"title": str, "url": str, "similarity": float},
+    SEARCH_UNAVAILABLE se a busca nao pode nem ser carregada (bloqueio/erro de
+    rede - nao sabemos se o produto existe ou nao), ou None se a busca
+    carregou normalmente mas nao achou nenhum candidato relevante."""
 
     search_url = brand_cfg["search_url_template"].format(query=quote_plus(product_title))
     status, soup = fetch_html(search_url, settings["request_timeout_seconds"], user_agent)
 
     if soup is None:
         logging.warning("Nao foi possivel carregar a busca em %s (status=%s)", search_url, status)
-        return None
+        return SEARCH_UNAVAILABLE
 
     candidates = []
 
@@ -364,13 +381,19 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
     /products.json (paginado). Alternativa mais confiavel do que raspar HTML
     quando a busca do site depende de JavaScript para mostrar resultados.
     Resultado e armazenado em cache (por URL base) para nao repetir o
-    download a cada produto da mesma marca."""
+    download a cada produto da mesma marca.
+
+    Retorna a lista de produtos, SEARCH_UNAVAILABLE se nem a primeira pagina
+    do catalogo pode ser carregada (bloqueio/erro de rede - nao sabemos se o
+    produto existe ou nao), ou lista vazia se o catalogo carregou mas
+    realmente veio sem produtos."""
     if base_products_json_url in _shopify_catalog_cache:
         return _shopify_catalog_cache[base_products_json_url]
 
     headers = {"User-Agent": user_agent or "Mozilla/5.0 (compatible; StockSyncBot/1.0)"}
     separator = "&" if "?" in base_products_json_url else "?"
     all_products = []
+    load_failed = False
     for page in range(1, max_pages + 1):
         url = f"{base_products_json_url}{separator}page={page}"
         try:
@@ -379,14 +402,17 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
             resp.raise_for_status()
         except HardTimeout as e:
             logging.warning("Timeout absoluto ao acessar %s: %s", url, e)
+            load_failed = (page == 1)
             break
         except requests.RequestException as e:
             logging.warning("Erro de rede ao acessar %s: %s", url, e)
+            load_failed = (page == 1)
             break
         try:
             data = resp.json()
         except ValueError:
             logging.warning("Resposta nao-JSON em %s, parando paginacao.", url)
+            load_failed = (page == 1)
             break
         batch = data.get("products", [])
         if not batch:
@@ -395,13 +421,21 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
         page_size_hint = 30
         if len(batch) < page_size_hint:
             break
+
     if all_products:
         # So armazena em cache resultados nao-vazios: se a primeira tentativa
         # falhou (ex: rate limit passageiro), deixamos o proximo produto
         # dessa marca tentar de novo, em vez de travar "catalogo indisponivel"
         # para o resto da execucao inteira.
         _shopify_catalog_cache[base_products_json_url] = all_products
-    return all_products
+        return all_products
+
+    if load_failed:
+        # Nem a primeira pagina do catalogo carregou - nao sabemos se o produto
+        # existe ou nao, so que nao conseguimos checar agora.
+        return SEARCH_UNAVAILABLE
+
+    return all_products  # catalogo carregou normalmente e realmente veio vazio
 
 
 def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: dict, user_agent: str):
@@ -411,8 +445,11 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
     products_json_url = brand_cfg["products_json_url"]
     all_products = fetch_shopify_products(products_json_url, settings["request_timeout_seconds"], user_agent)
 
+    if all_products is SEARCH_UNAVAILABLE:
+        return SEARCH_UNAVAILABLE
+
     if not all_products:
-        logging.warning("Nao foi possivel carregar o catalogo via products.json: %s", products_json_url)
+        logging.warning("Catalogo Shopify carregou vazio: %s", products_json_url)
         return None
 
     best_product, best_score = None, 0.0
@@ -468,9 +505,14 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
             logging.error("[%s] Erro inesperado consultando products.json da marca: %s", product_id, e)
             return True
 
+        if sj_result is SEARCH_UNAVAILABLE:
+            logging.info("[%s] Catalogo Shopify da marca %s indisponivel (bloqueio/erro de rede) - "
+                         "nenhuma acao tomada (revise manualmente).", product_id, brand_cfg["display_name"])
+            return True
+
         if sj_result is None or not sj_result["matched"]:
             found_desc = (f"(melhor match: '{sj_result['title']}' score={sj_result['similarity']:.2f})"
-                          if sj_result else "(catalogo indisponivel)")
+                          if sj_result else "(catalogo vazio)")
             logging.info("[%s] Nao encontrado no catalogo Shopify da marca %s -> desativar. %s",
                          product_id, brand_cfg["display_name"], found_desc)
             deactivate_product(product_id, product_title, settings, client)
@@ -495,6 +537,11 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
     except Exception as e:
         # Rede caiu, site mudou de estrutura, etc. Nunca deixa isso derrubar o script.
         logging.error("[%s] Erro inesperado buscando no site da marca: %s", product_id, e)
+        return True
+
+    if result is SEARCH_UNAVAILABLE:
+        logging.info("[%s] Busca no site da marca %s indisponivel (bloqueio/erro de rede) - "
+                     "nenhuma acao tomada (revise manualmente).", product_id, brand_cfg["display_name"])
         return True
 
     min_similarity = settings.get("min_title_similarity", 0.6)
