@@ -575,7 +575,7 @@ def main():
     # GitHub Actions com timeout-minutes: 25 = 1500 segundos.
     # Deixa 5 min de margem pra finalizacao limpa = 1200 seg (20 min).
     start_time = time.time()
-    deadline_seconds = 20 * 60  # 20 minutos (margem de 5 min antes do timeout de 25 min)
+    deadline_seconds = 85 * 60  # 85 minutos (margem de 5 min antes do timeout de 90 min do workflow)
     total_products = len(products)
 
     for idx, product in enumerate(products, 1):
