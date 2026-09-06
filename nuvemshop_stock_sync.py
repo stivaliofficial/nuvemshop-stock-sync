@@ -96,9 +96,18 @@ def normalize_text(text: str) -> str:
     return text
 
 
-def title_similarity(title_a: str, title_b: str) -> float:
-    """Retorna um score de 0 a 1 de o quanto dois titulos sao parecidos."""
-    return SequenceMatcher(None, normalize_text(title_a), normalize_text(title_b)).ratio()
+def title_similarity(title_a: str, title_b: str, brand_name: str = "") -> float:
+    """Retorna um score de 0 a 1 de o quanto dois titulos sao parecidos.
+    Remove o nome da marca do title_a antes de comparar, ja que o site
+    oficial da marca normalmente NAO repete o proprio nome no titulo do
+    produto (ex: Nuvemshop tem 'DR. MARTENS 1460 BLACK SMOOTH CLASSIC',
+    mas o site da Dr. Martens tem soh '1460 Smooth Leather Boots'). Sem
+    essa remocao, o prefixo da marca derruba artificialmente o score de
+    TODOS os produtos daquela marca."""
+    clean_a = normalize_text(title_a)
+    if brand_name:
+        clean_a = clean_a.replace(normalize_text(brand_name), "").strip()
+    return SequenceMatcher(None, clean_a, normalize_text(title_b)).ratio()
 
 
 def detect_brand(product_title: str, brands_config: dict):
@@ -281,7 +290,7 @@ def search_brand_site(product_title: str, brand_cfg: dict, settings: dict, user_
     # Escolhe o candidato mais parecido com o titulo do nosso produto
     best_text, best_href, best_score = None, None, 0.0
     for text, href in candidates:
-        score = title_similarity(product_title, text)
+        score = title_similarity(product_title, text, brand_name=brand_cfg.get("display_name", ""))
         if score > best_score:
             best_text, best_href, best_score = text, href, score
 
@@ -378,7 +387,7 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
 
     best_product, best_score = None, 0.0
     for p in all_products:
-        score = title_similarity(product_title, p.get("title", ""))
+        score = title_similarity(product_title, p.get("title", ""), brand_name=brand_cfg.get("display_name", ""))
         if score > best_score:
             best_product, best_score = p, score
 
