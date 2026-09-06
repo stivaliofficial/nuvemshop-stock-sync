@@ -26,7 +26,7 @@
       ],
       "out_of_stock_keywords": ["sold out", "out of stock", "notify me"],
       "buy_button_keywords": ["add to bag", "add to cart"],
-      "_nota": "Fonte: site oficial Holanda (NL), conforme indicado pelo usuario."
+      "_nota": "Fonte: site oficial Holanda (NL), conforme indicado pelo usuario.",
       "product_url_pattern": "/p/\\d+"
     },
     "timberland": {
@@ -37,7 +37,7 @@
       "buy_button_keywords": ["comprar", "a\u00f1adir a la bolsa"],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
-  "new rock": {
+    "new rock": {
       "display_name": "New Rock",
       "strategy": "shopify_products_json",
       "products_json_url": "https://newrock.com/products.json?limit=250",
