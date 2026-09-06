@@ -4,7 +4,6 @@
     "access_token": "SEU_ACCESS_TOKEN_AQUI",
     "user_agent": "STIVALI Stock Sync (contato@stivali.com.br)"
   },
-
   "settings": {
     "request_timeout_seconds": 15,
     "delay_between_requests_seconds": 2,
@@ -13,28 +12,24 @@
     "auto_reenable_if_back_in_stock": false,
     "log_file": "stock_sync.log"
   },
-
   "_comment_brands": "Chave = trecho do titulo do produto (minusculo) usado para identificar a marca. O script procura essa chave dentro do titulo do produto da Nuvemshop para decidir qual site pesquisar.",
   "brands": {
-    "dr. martens": {
-      "display_name": "Dr. Martens",
-      "search_url_template": "https://www.drmartens.com/nl/en/search?q={query}",
-      "product_link_selectors": [
-        "a.product-item-link",
-        "a[data-testid='product-card-link']",
-        "a.product-tile__link"
-      ],
-      "out_of_stock_keywords": ["sold out", "out of stock", "notify me"],
-      "buy_button_keywords": ["add to bag", "add to cart"],
-      "_nota": "Fonte: site oficial Holanda (NL), conforme indicado pelo usuario.",
-      "product_url_pattern": "/p/\\d+"
-    },
     "timberland": {
       "display_name": "Timberland",
       "search_url_template": "https://www.timberland.es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-card__link"],
-      "out_of_stock_keywords": ["agotado", "producto no disponible", "avisame"],
-      "buy_button_keywords": ["comprar", "a\u00f1adir a la bolsa"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-card__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "producto no disponible",
+        "avisame"
+      ],
+      "buy_button_keywords": [
+        "comprar",
+        "añadir a la bolsa"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "new rock": {
@@ -46,100 +41,221 @@
     "balenciaga": {
       "display_name": "Balenciaga",
       "search_url_template": "https://www.balenciaga.com/es-es/search?q={query}",
-      "product_link_selectors": ["a.product-tile-link", "a.product-link", "a.grid-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "avisame cuando este disponible"],
-      "buy_button_keywords": ["a\u00f1adir a la bolsa", "add to bag"],
+      "product_link_selectors": [
+        "a.product-tile-link",
+        "a.product-link",
+        "a.grid-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "avisame cuando este disponible"
+      ],
+      "buy_button_keywords": [
+        "añadir a la bolsa",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "carhartt": {
       "display_name": "Carhartt WIP",
       "search_url_template": "https://www.carhartt-wip.com/es/es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "out of stock"],
-      "buy_button_keywords": ["a\u00f1adir al carrito", "add to cart"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "out of stock"
+      ],
+      "buy_button_keywords": [
+        "añadir al carrito",
+        "add to cart"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "chrome hearts": {
       "display_name": "Chrome Hearts",
       "search_url_template": "https://www.resellzonecesena.com/en/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.grid-view-item__link", "a.product-card__link"],
-      "out_of_stock_keywords": ["sold out", "out of stock", "esaurito"],
-      "buy_button_keywords": ["add to cart", "aggiungi al carrello"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.grid-view-item__link",
+        "a.product-card__link"
+      ],
+      "out_of_stock_keywords": [
+        "sold out",
+        "out of stock",
+        "esaurito"
+      ],
+      "buy_button_keywords": [
+        "add to cart",
+        "aggiungi al carrello"
+      ],
       "_nota": "Fonte definida pelo usuario: resellzonecesena.com (revenda/reseller), nao o site oficial da marca."
     },
     "dries van noten": {
       "display_name": "Dries Van Noten",
       "search_url_template": "https://www.driesvannoten.com/es-es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "avisame"],
-      "buy_button_keywords": ["a\u00f1adir a la bolsa", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "avisame"
+      ],
+      "buy_button_keywords": [
+        "añadir a la bolsa",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "gentle monster": {
       "display_name": "Gentle Monster",
       "search_url_template": "https://www.gentlemonster.com/es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-card__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "out of stock"],
-      "buy_button_keywords": ["a\u00f1adir al carrito", "add to cart"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-card__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "out of stock"
+      ],
+      "buy_button_keywords": [
+        "añadir al carrito",
+        "add to cart"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "golden goose": {
       "display_name": "Golden Goose",
       "search_url_template": "https://www.goldengoose.com/es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "avisame"],
-      "buy_button_keywords": ["a\u00f1adir a la bolsa", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "avisame"
+      ],
+      "buy_button_keywords": [
+        "añadir a la bolsa",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "maison mihara": {
       "display_name": "Maison Mihara Yasuhiro",
       "search_url_template": "https://en.miharayasuhiro.jp/products/list.php?mode=search&name={query}",
-      "product_link_selectors": ["a.product-item-link", "a.item-link", "a[href*='/products/detail.php']"],
-      "out_of_stock_keywords": ["sold out", "\u5b8c\u58f2"],
-      "buy_button_keywords": ["add to cart", "\u30ab\u30fc\u30c8\u306b\u5165\u308c\u308b"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.item-link",
+        "a[href*='/products/detail.php']"
+      ],
+      "out_of_stock_keywords": [
+        "sold out",
+        "完売"
+      ],
+      "buy_button_keywords": [
+        "add to cart",
+        "カートに入れる"
+      ],
       "_nota": "Fonte: site oficial (en.miharayasuhiro.jp), conforme confirmado pelo usuario. Busca usa parametro 'name' via mode=search. Confirme o funcionamento no primeiro teste, pois o site tem estrutura customizada."
     },
     "miista": {
       "display_name": "Miista",
       "search_url_template": "https://www.miista.com/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.grid-view-item__link"],
-      "out_of_stock_keywords": ["sold out", "out of stock", "agotado"],
-      "buy_button_keywords": ["add to cart", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.grid-view-item__link"
+      ],
+      "out_of_stock_keywords": [
+        "sold out",
+        "out of stock",
+        "agotado"
+      ],
+      "buy_button_keywords": [
+        "add to cart",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial (marca com raizes espanholas), conforme indicado pelo usuario. Confirme se o dominio esta correto no primeiro teste."
     },
     "rick owens": {
       "display_name": "Rick Owens",
       "search_url_template": "https://www.rickowens.eu/es_ES/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "avisame"],
-      "buy_button_keywords": ["a\u00f1adir a la bolsa", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "avisame"
+      ],
+      "buy_button_keywords": [
+        "añadir a la bolsa",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     },
     "twojeys": {
       "display_name": "TwoJeys",
       "search_url_template": "https://twojeys.com/es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.grid-view-item__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "out of stock"],
-      "buy_button_keywords": ["a\u00f1adir al carrito", "add to cart"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.grid-view-item__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "out of stock"
+      ],
+      "buy_button_keywords": [
+        "añadir al carrito",
+        "add to cart"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario. Confirme se o dominio esta correto no primeiro teste."
     },
     "vetements": {
       "display_name": "Vetements",
       "search_url_template": "https://www.ssense.com/en-es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.plp-products-list__item-link"],
-      "out_of_stock_keywords": ["sold out", "out of stock", "no longer available"],
-      "buy_button_keywords": ["add to cart", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.plp-products-list__item-link"
+      ],
+      "out_of_stock_keywords": [
+        "sold out",
+        "out of stock",
+        "no longer available"
+      ],
+      "buy_button_keywords": [
+        "add to cart",
+        "add to bag"
+      ],
       "_nota": "Fonte definida pelo usuario: SSENSE Espanha (revendedor multimarca), nao o site oficial da Vetements."
     },
     "vilebrequin": {
       "display_name": "Vilebrequin",
       "search_url_template": "https://www.vilebrequin.com/es_es/search?q={query}",
-      "product_link_selectors": ["a.product-item-link", "a.product-tile__link"],
-      "out_of_stock_keywords": ["agotado", "sold out", "avisame"],
-      "buy_button_keywords": ["a\u00f1adir a la bolsa", "add to bag"],
+      "product_link_selectors": [
+        "a.product-item-link",
+        "a.product-tile__link"
+      ],
+      "out_of_stock_keywords": [
+        "agotado",
+        "sold out",
+        "avisame"
+      ],
+      "buy_button_keywords": [
+        "añadir a la bolsa",
+        "add to bag"
+      ],
       "_nota": "Fonte: site oficial Espanha, conforme indicado pelo usuario."
     }
   },
-
   "_comment": "Adicione mais marcas seguindo o mesmo padrao. Se uma marca nao estiver aqui, o script vai pular o produto e avisar no log para voce mapear manualmente. Marcas marcadas com _nota precisam de atencao extra/verificacao antes de confiar no resultado."
 }

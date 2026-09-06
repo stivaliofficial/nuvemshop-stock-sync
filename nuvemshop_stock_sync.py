@@ -350,10 +350,24 @@ def check_product_page_stock(url: str, brand_cfg: dict, settings: dict, user_age
 # Fluxo principal
 # --------------------------------------------------------------------------
 
+# Cache em memoria do catalogo Shopify por marca, valido apenas durante esta
+# execucao do script. Sem isso, cada PRODUTO da marca dispararia um download
+# completo e repetido do catalogo (paginado, 20 requests) - o que sobrecarrega
+# o site (erros 429 "Too Many Requests") e consome a maior parte do tempo
+# disponivel antes do deadline, impedindo o script de processar o catalogo
+# inteiro da Nuvemshop.
+_shopify_catalog_cache: dict = {}
+
+
 def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent: str, max_pages: int = 20):
     """Baixa o catalogo completo de uma loja Shopify via o endpoint publico
     /products.json (paginado). Alternativa mais confiavel do que raspar HTML
-    quando a busca do site depende de JavaScript para mostrar resultados."""
+    quando a busca do site depende de JavaScript para mostrar resultados.
+    Resultado e armazenado em cache (por URL base) para nao repetir o
+    download a cada produto da mesma marca."""
+    if base_products_json_url in _shopify_catalog_cache:
+        return _shopify_catalog_cache[base_products_json_url]
+
     headers = {"User-Agent": user_agent or "Mozilla/5.0 (compatible; StockSyncBot/1.0)"}
     separator = "&" if "?" in base_products_json_url else "?"
     all_products = []
@@ -381,6 +395,12 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
         page_size_hint = 30
         if len(batch) < page_size_hint:
             break
+    if all_products:
+        # So armazena em cache resultados nao-vazios: se a primeira tentativa
+        # falhou (ex: rate limit passageiro), deixamos o proximo produto
+        # dessa marca tentar de novo, em vez de travar "catalogo indisponivel"
+        # para o resto da execucao inteira.
+        _shopify_catalog_cache[base_products_json_url] = all_products
     return all_products
 
 
