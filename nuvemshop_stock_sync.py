@@ -278,11 +278,21 @@ def search_brand_site(product_title: str, brand_cfg: dict, settings: dict, user_
     # Fallback generico: qualquer link cujo texto pareca um nome de produto
     # (mais de 3 palavras, sem ser menu/rodape) - usado se os seletores
     # especificos nao acharem nada, por exemplo apos o site mudar de layout.
+    # Se a marca tiver "product_url_pattern" configurado no config.json, o
+    # fallback so aceita links cuja URL bate com esse padrao (regex) - isso
+    # evita pegar links de menu/rodape (ex: "Terug naar school") que tem
+    # 3+ palavras mas nao levam a pagina nenhuma de produto.
     if not candidates:
+        url_pattern = brand_cfg.get("product_url_pattern")
+        compiled_pattern = re.compile(url_pattern) if url_pattern else None
         for link in soup.find_all("a", href=True):
             text = link.get_text(strip=True)
-            if text and len(text.split()) >= 3:
-                candidates.append((text, link["href"]))
+            href = link["href"]
+            if not text or len(text.split()) < 3:
+                continue
+            if compiled_pattern is not None and not compiled_pattern.search(href):
+                continue
+            candidates.append((text, href))
 
     if not candidates:
         return None
