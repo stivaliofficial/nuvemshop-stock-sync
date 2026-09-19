@@ -8,7 +8,7 @@
     "request_timeout_seconds": 15,
     "delay_between_requests_seconds": 2,
     "min_title_similarity": 0.62,
-    "dry_run": false,
+    "dry_run": true,
     "auto_reenable_if_back_in_stock": false,
     "log_file": "stock_sync.log"
   },
