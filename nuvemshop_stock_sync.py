@@ -34,6 +34,18 @@ IMPORTANTE:
   parecido o suficiente. Isso evita, por exemplo, que uma marca inteira seja
   desativada soh porque o site dela passou a bloquear scraping (caso real:
   Rick Owens, atras de protecao Cloudflare, devolvendo 404 em toda busca).
+
+CORRECAO 2026-09-18 (Luiz):
+- Descoberto caso real de falso positivo: "NEW ROCK ANKLE BOOT METALLIC
+  M-285-S30" foi desativado por engano porque o catalogo da New Rock usa
+  APENAS O CODIGO como titulo do produto (ex: titulo real = "M-285-S30"),
+  enquanto a Nuvemshop tem titulo + descricao completa. A similaridade de
+  texto penaliza a descricao extra e derruba o score abaixo do minimo.
+  Correcao: para marcas com strategy=shopify_products_json, tenta primeiro
+  extrair o codigo de referencia (ultimo token do titulo, ex "M-285-S30")
+  e bater EXATO contra o titulo/handle do catalogo antes de cair na
+  similaridade de texto. So usa similaridade como fallback quando nao ha
+  codigo identificavel no titulo do produto.
 """
 
 import json
@@ -123,6 +135,22 @@ def title_similarity(title_a: str, title_b: str, brand_name: str = "") -> float:
     if brand_name:
         clean_a = clean_a.replace(normalize_text(brand_name), "").strip()
     return SequenceMatcher(None, clean_a, normalize_text(title_b)).ratio()
+
+
+def extract_reference_code(title: str):
+    """Extrai um codigo de referencia do fabricante a partir do FINAL do
+    titulo do produto, ex: 'NEW ROCK ANKLE BOOT METALLIC M-285-S30' ->
+    'M-285-S30'. Retorna None se o ultimo token nao parecer um codigo
+    (letras+numeros com separador - ou _, nao apenas um numero de tamanho).
+    Usado para correspondencia EXATA contra catalogos onde o titulo do
+    fornecedor e so o codigo (caso real: New Rock)."""
+    tokens = title.strip().split()
+    if not tokens:
+        return None
+    last = tokens[-1]
+    if re.match(r"^[A-Za-z]{1,4}[-_][A-Za-z0-9_\-]+$", last):
+        return last
+    return None
 
 
 def detect_brand(product_title: str, brands_config: dict):
@@ -440,8 +468,20 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
 
 def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: dict, user_agent: str):
     """Estrategia alternativa para lojas Shopify cuja pagina de busca depende
-    de JavaScript. Baixa o catalogo via /products.json e decide disponibilidade
-    comparando titulos diretamente (sem precisar abrir a pagina do produto)."""
+    de JavaScript. Baixa o catalogo via /products.json e decide disponibilidade.
+
+    Tenta DUAS estrategias, nessa ordem:
+    1. Correspondencia EXATA por codigo de referencia: extrai o codigo do
+       final do titulo do produto (ex: "M-285-S30") e busca um produto no
+       catalogo cujo titulo OU handle bata exatamente com esse codigo. Muitos
+       catalogos de fornecedor (caso confirmado: New Rock) usam SO o codigo
+       como titulo do produto, entao comparar por similaridade de texto contra
+       o titulo completo da Nuvemshop (que tem descricao extra) frequentemente
+       falha mesmo quando o produto existe.
+    2. Fallback por similaridade de texto (metodo original), usado quando nao
+       ha codigo identificavel no titulo ou quando o codigo nao bate com nada
+       no catalogo.
+    """
     products_json_url = brand_cfg["products_json_url"]
     all_products = fetch_shopify_products(products_json_url, settings["request_timeout_seconds"], user_agent)
 
@@ -452,6 +492,31 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
         logging.warning("Catalogo Shopify carregou vazio: %s", products_json_url)
         return None
 
+    # --- Estrategia 1: correspondencia exata por codigo de referencia ---
+    code = extract_reference_code(product_title)
+    if code:
+        normalized_code = normalize_text(code)
+        normalized_code_compact = normalized_code.replace("-", "").replace("_", "")
+        for p in all_products:
+            candidate_title = normalize_text(p.get("title", ""))
+            candidate_handle = normalize_text(p.get("handle", "")).replace("-", "")
+            if normalized_code == candidate_title or normalized_code_compact == candidate_handle:
+                variants = p.get("variants", [])
+                in_stock = any(v.get("available") for v in variants) if variants else None
+                logging.info(
+                    "Correspondencia exata por codigo '%s' -> produto '%s' do catalogo.",
+                    code, p.get("title", ""),
+                )
+                return {
+                    "title": p.get("title", ""),
+                    "similarity": 1.0,
+                    "matched": True,
+                    "in_stock": in_stock,
+                    "match_method": "exact_code",
+                }
+        logging.debug("Codigo '%s' extraido do titulo mas nao encontrado no catalogo; tentando similaridade.", code)
+
+    # --- Estrategia 2: fallback por similaridade de texto ---
     best_product, best_score = None, 0.0
     for p in all_products:
         score = title_similarity(product_title, p.get("title", ""), brand_name=brand_cfg.get("display_name", ""))
@@ -473,6 +538,7 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
         "similarity": best_score,
         "matched": matched,
         "in_stock": in_stock,
+        "match_method": "similarity",
     }
 
 
@@ -518,8 +584,8 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
             deactivate_product(product_id, product_title, settings, client)
             return True
 
-        logging.info("[%s] Encontrado no catalogo: '%s' (similaridade=%.2f)",
-                     product_id, sj_result["title"], sj_result["similarity"])
+        logging.info("[%s] Encontrado no catalogo: '%s' (similaridade=%.2f, metodo=%s)",
+                     product_id, sj_result["title"], sj_result["similarity"], sj_result.get("match_method", "?"))
 
         if sj_result["in_stock"] is False:
             logging.info("[%s] Sem variantes disponiveis no catalogo -> desativar.", product_id)
@@ -619,8 +685,6 @@ def main():
         return
 
     # SISTEMA DE DEADLINE: para graciosamente se o tempo estiver acabando.
-    # GitHub Actions com timeout-minutes: 25 = 1500 segundos.
-    # Deixa 5 min de margem pra finalizacao limpa = 1200 seg (20 min).
     start_time = time.time()
     deadline_seconds = 85 * 60  # 85 minutos (margem de 5 min antes do timeout de 90 min do workflow)
     total_products = len(products)
