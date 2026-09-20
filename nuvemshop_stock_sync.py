@@ -137,17 +137,18 @@ def title_similarity(title_a: str, title_b: str, brand_name: str = "") -> float:
     return SequenceMatcher(None, clean_a, normalize_text(title_b)).ratio()
 
 
-_CODE_TOKEN_RE = re.compile(r"^[A-Za-z]{1,4}[.\-_][A-Za-z0-9_.\-]+$")
+_CODE_TOKEN_RE = re.compile(r"^[A-Za-z]{1,4}[.\-_][A-Za-z0-9_.\-]*\d[A-Za-z0-9_.\-]*$")
 
 
 def extract_reference_code(title: str):
     """Extrai um codigo de referencia do fabricante procurando em TODAS as
     palavras do titulo (nao so a ultima, ja que alguns titulos tem o codigo
-    no meio ou no inicio, ex: 'W-NRLMJ030-S1 MENS LEATHER JACKET'), e aceita
-    ponto alem de traco/underscore como separador (ex: 'M.373-S18'). Retorna
-    a primeira palavra que parecer um codigo, ou None se nao achar nenhuma.
-    Usado para correspondencia EXATA contra catalogos onde o titulo do
-    fornecedor e so o codigo (caso real: New Rock)."""
+    no meio ou no inicio, ex: 'W-NRLMJ030-S1 MENS LEATHER JACKET'), aceita
+    ponto alem de traco/underscore como separador (ex: 'M.373-S18'), e exige
+    pelo menos um digito no token para nao confundir com um adjetivo comum
+    que tambem tenha traco (ex: 'B-LIGHT' em '... B-LIGHT WITH LACES
+    M-PISA102-S51' NAO e um codigo, mas bate no formato sem essa exigencia).
+    Retorna a primeira palavra que parecer um codigo, ou None se nao achar."""
     for token in title.strip().split():
         cleaned = token.strip(",")
         if _CODE_TOKEN_RE.match(cleaned):
