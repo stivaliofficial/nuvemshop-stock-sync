@@ -137,19 +137,21 @@ def title_similarity(title_a: str, title_b: str, brand_name: str = "") -> float:
     return SequenceMatcher(None, clean_a, normalize_text(title_b)).ratio()
 
 
+_CODE_TOKEN_RE = re.compile(r"^[A-Za-z]{1,4}[.\-_][A-Za-z0-9_.\-]+$")
+
+
 def extract_reference_code(title: str):
-    """Extrai um codigo de referencia do fabricante a partir do FINAL do
-    titulo do produto, ex: 'NEW ROCK ANKLE BOOT METALLIC M-285-S30' ->
-    'M-285-S30'. Retorna None se o ultimo token nao parecer um codigo
-    (letras+numeros com separador - ou _, nao apenas um numero de tamanho).
+    """Extrai um codigo de referencia do fabricante procurando em TODAS as
+    palavras do titulo (nao so a ultima, ja que alguns titulos tem o codigo
+    no meio ou no inicio, ex: 'W-NRLMJ030-S1 MENS LEATHER JACKET'), e aceita
+    ponto alem de traco/underscore como separador (ex: 'M.373-S18'). Retorna
+    a primeira palavra que parecer um codigo, ou None se nao achar nenhuma.
     Usado para correspondencia EXATA contra catalogos onde o titulo do
     fornecedor e so o codigo (caso real: New Rock)."""
-    tokens = title.strip().split()
-    if not tokens:
-        return None
-    last = tokens[-1]
-    if re.match(r"^[A-Za-z]{1,4}[-_][A-Za-z0-9_\-]+$", last):
-        return last
+    for token in title.strip().split():
+        cleaned = token.strip(",")
+        if _CODE_TOKEN_RE.match(cleaned):
+            return cleaned
     return None
 
 
@@ -496,11 +498,14 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
     code = extract_reference_code(product_title)
     if code:
         normalized_code = normalize_text(code)
-        normalized_code_compact = normalized_code.replace("-", "").replace("_", "")
+        normalized_code_dash = normalized_code.replace(".", "-")
+        normalized_code_compact = normalized_code.replace("-", "").replace("_", "").replace(".", "")
         for p in all_products:
             candidate_title = normalize_text(p.get("title", ""))
             candidate_handle = normalize_text(p.get("handle", "")).replace("-", "")
-            if normalized_code == candidate_title or normalized_code_compact == candidate_handle:
+            if (normalized_code == candidate_title
+                    or normalized_code_dash == candidate_title
+                    or normalized_code_compact == candidate_handle):
                 variants = p.get("variants", [])
                 in_stock = any(v.get("available") for v in variants) if variants else None
                 logging.info(
