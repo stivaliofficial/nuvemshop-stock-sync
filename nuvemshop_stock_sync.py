@@ -570,6 +570,13 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
 
     logging.info("[%s] '%s' -> marca identificada: %s", product_id, product_title, brand_cfg["display_name"])
 
+    # dry_run por marca: se a marca tiver sua propria chave "dry_run" no
+    # config.json, ela manda; senao, usa o padrao global de settings. Isso
+    # permite ter uma marca ja validada rodando de verdade (dry_run: false)
+    # enquanto outra ainda esta em teste (dry_run: true), sem uma afetar a
+    # outra.
+    effective_dry_run = brand_cfg.get("dry_run", settings.get("dry_run", True))
+
     if brand_cfg.get("strategy") == "shopify_products_json":
         try:
             sj_result = search_shopify_products_json(product_title, brand_cfg, settings, user_agent)
@@ -587,7 +594,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
                           if sj_result else "(catalogo vazio)")
             logging.info("[%s] Nao encontrado no catalogo Shopify da marca %s -> desativar. %s",
                          product_id, brand_cfg["display_name"], found_desc)
-            deactivate_product(product_id, product_title, settings, client)
+            deactivate_product(product_id, product_title, effective_dry_run, client)
             return True
 
         logging.info("[%s] Encontrado no catalogo: '%s' (similaridade=%.2f, metodo=%s)",
@@ -595,11 +602,11 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
 
         if sj_result["in_stock"] is False:
             logging.info("[%s] Sem variantes disponiveis no catalogo -> desativar.", product_id)
-            deactivate_product(product_id, product_title, settings, client)
+            deactivate_product(product_id, product_title, effective_dry_run, client)
         elif sj_result["in_stock"] is True:
             logging.info("[%s] Disponivel no catalogo Shopify.", product_id)
             if settings.get("auto_reenable_if_back_in_stock") and not product.get("published", True):
-                reactivate_product(product_id, product_title, settings, client)
+                reactivate_product(product_id, product_title, effective_dry_run, client)
         else:
             logging.info("[%s] Nao foi possivel confirmar disponibilidade com certeza - nenhuma acao tomada.", product_id)
         return True
@@ -623,7 +630,7 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
         found_desc = f"(melhor match: '{result['title']}' score={result['similarity']:.2f})" if result else "(nenhum resultado)"
         logging.info("[%s] Nao encontrado no site da marca %s -> desativar. %s",
                      product_id, brand_cfg["display_name"], found_desc)
-        deactivate_product(product_id, product_title, settings, client)
+        deactivate_product(product_id, product_title, effective_dry_run, client)
         return True
 
     logging.info("[%s] Encontrado: '%s' (similaridade=%.2f) -> %s",
@@ -637,11 +644,11 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
 
     if in_stock is False:
         logging.info("[%s] Marcado como ESGOTADO no site da marca -> desativar.", product_id)
-        deactivate_product(product_id, product_title, settings, client)
+        deactivate_product(product_id, product_title, effective_dry_run, client)
     elif in_stock is True:
         logging.info("[%s] Disponivel no site da marca.", product_id)
         if settings.get("auto_reenable_if_back_in_stock") and not product.get("published", True):
-            reactivate_product(product_id, product_title, settings, client)
+            reactivate_product(product_id, product_title, effective_dry_run, client)
     else:
         logging.info("[%s] Nao foi possivel confirmar o status de estoque com certeza - "
                      "nenhuma acao tomada (revise manualmente).", product_id)
@@ -649,8 +656,8 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
     return True
 
 
-def deactivate_product(product_id: int, product_title: str, settings: dict, client: NuvemshopClient):
-    if settings.get("dry_run", True):
+def deactivate_product(product_id: int, product_title: str, dry_run: bool, client: NuvemshopClient):
+    if dry_run:
         logging.info("[DRY-RUN] Desativaria o produto %s ('%s') na Nuvemshop.", product_id, product_title)
         return
     ok = client.set_product_published(product_id, False)
@@ -658,8 +665,8 @@ def deactivate_product(product_id: int, product_title: str, settings: dict, clie
         logging.info("Produto %s ('%s') DESATIVADO na Nuvemshop.", product_id, product_title)
 
 
-def reactivate_product(product_id: int, product_title: str, settings: dict, client: NuvemshopClient):
-    if settings.get("dry_run", True):
+def reactivate_product(product_id: int, product_title: str, dry_run: bool, client: NuvemshopClient):
+    if dry_run:
         logging.info("[DRY-RUN] Reativaria o produto %s ('%s') na Nuvemshop.", product_id, product_title)
         return
     ok = client.set_product_published(product_id, True)

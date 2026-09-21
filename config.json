@@ -12,15 +12,23 @@
     "auto_reenable_if_back_in_stock": false,
     "log_file": "stock_sync.log"
   },
-  "_status": "LANCAMENTO PARCIAL (fase 1) - iniciado em 2026-09-17 a pedido do Luiz. Somente marcas com deteccao validada em dry-run entram aqui com dry_run:false valendo pra elas. As outras 13 marcas foram removidas TEMPORARIAMENTE desta lista (nao do projeto) ate cada uma passar por um teste limpo em dry_run. Um produto so e tocado se a chave da marca dele existir aqui embaixo - por isso e seguro rodar com dry_run:false mesmo com o restante do catalogo pendente. Ver /areas/estoque-inteligente.md e /projects overview.md para o historico completo e a ordem de reintroducao planejada (TwoJeys e a proxima, ja que usa o mesmo padrao Shopify da New Rock).",
-  "_comment_brands": "Chave = trecho do titulo do produto (minusculo) usado para identificar a marca. O script procura essa chave dentro do titulo do produto da Nuvemshop para decidir qual site pesquisar.",
+  "_status": "FASE 2 - 2026-09-21. dry_run agora e configuravel POR MARCA (ver chave 'dry_run' dentro de cada marca abaixo); o 'dry_run' aqui em settings e so o padrao para marcas que nao especificarem o proprio (fica true por seguranca - toda marca nova nasce em modo teste ate ser validada). New Rock: validada, rodando de verdade (dry_run:false na propria marca). TwoJeys: entrando agora em teste (dry_run:true na propria marca), mesma estrategia Shopify da New Rock. Ver /areas/estoque-inteligente.md para o historico completo.",
+  "_comment_brands": "Chave = trecho do titulo do produto (minusculo) usado para identificar a marca. O script procura essa chave dentro do titulo do produto da Nuvemshop para decidir qual site pesquisar. Cada marca pode ter sua propria chave 'dry_run' (true/false) que sobrescreve o padrao de settings so para ela.",
   "brands": {
     "new rock": {
       "display_name": "New Rock",
       "strategy": "shopify_products_json",
       "products_json_url": "https://newrock.com/products.json?limit=250",
-      "_nota": "Unica marca validada em dry-run ate agora: 296 produtos analisados, 232 confirmados em estoque, 64 sinalizados para desativar (61 nao encontrados + 3 sem variantes), 0 casos ambiguos. Primeira marca a rodar com dry_run:false."
+      "dry_run": false,
+      "_nota": "EM PRODUCAO desde 2026-09-21. Validada em varias rodadas de dry-run: 315/336 produtos confirmados com certeza (via codigo exato de referencia, ex: M-285-S30), 21 sinalizados (11 sem codigo no titulo - inclui toda a colecao 'Vetements x New Rock', que sera revisada quando trabalharmos a marca Vetements - e 10 outros a confirmar/genuinamente fora de linha)."
+    },
+    "twojeys": {
+      "display_name": "TwoJeys",
+      "strategy": "shopify_products_json",
+      "products_json_url": "https://twojeys.com/products.json?limit=250",
+      "dry_run": true,
+      "_nota": "EM TESTE desde 2026-09-21. URL do catalogo e uma suposicao baseada no mesmo padrao da New Rock (loja Shopify) - confirmar no primeiro log se o catalogo carrega corretamente antes de confiar nos resultados."
     }
   },
-  "_comment": "Marcas removidas temporariamente desta secao (nao apagadas do projeto, so tiradas daqui ate serem validadas): dr. martens/dr martens (URL de busca quebrada - site redesenhado), carhartt (URL retorna 404), chrome hearts, dries van noten, gentle monster (busca conecta mas quase nunca encontra match), maison mihara, miista (rate limit 429), rick owens (bloqueio Cloudflare), timberland, twojeys (candidata forte a shopify_products_json, mesma URL pattern da new rock - proxima a testar), vetements, vilebrequin (URL retorna 404). Golden Goose foi removida definitivamente - nao faz parte do catalogo da STIVALI."
+  "_comment": "Marcas ainda fora desta lista (nao apagadas do projeto, so aguardando validacao): dr. martens/dr martens (URL de busca quebrada - site redesenhado), carhartt (URL retorna 404), chrome hearts, dries van noten, gentle monster (busca conecta mas quase nunca encontra match), maison mihara, miista (rate limit 429), rick owens (bloqueio Cloudflare), timberland, vetements, vilebrequin (URL retorna 404). Golden Goose foi removida definitivamente - nao faz parte do catalogo da STIVALI."
 }
