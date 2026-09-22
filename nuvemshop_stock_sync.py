@@ -469,6 +469,34 @@ def fetch_shopify_products(base_products_json_url: str, timeout: int, user_agent
     return all_products  # catalogo carregou normalmente e realmente veio vazio
 
 
+def _log_variant_diagnostics(product_title: str, product_data: dict, variants: list):
+    """Loga os dados brutos de variante quando o catalogo diz 'sem estoque',
+    para investigar casos suspeitos (ex: TwoJeys marcando produtos que estao
+    visivelmente disponiveis no site como sem variante disponivel - possivel
+    problema de mercado/regiao/moeda no feed publico do Shopify)."""
+    logging.info(
+        "[DIAGNOSTICO] Produto Stivali '%s' -> catalogo diz SEM ESTOQUE para '%s' "
+        "(handle=%s, product_id_shopify=%s). Variantes cruas: %s",
+        product_title,
+        product_data.get("title", ""),
+        product_data.get("handle", ""),
+        product_data.get("id", ""),
+        json.dumps(
+            [
+                {
+                    "id": v.get("id"),
+                    "title": v.get("title"),
+                    "available": v.get("available"),
+                    "inventory_quantity": v.get("inventory_quantity"),
+                    "price": v.get("price"),
+                }
+                for v in variants
+            ],
+            ensure_ascii=False,
+        ),
+    )
+
+
 def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: dict, user_agent: str):
     """Estrategia alternativa para lojas Shopify cuja pagina de busca depende
     de JavaScript. Baixa o catalogo via /products.json e decide disponibilidade.
@@ -509,6 +537,8 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
                     or normalized_code_compact == candidate_handle):
                 variants = p.get("variants", [])
                 in_stock = any(v.get("available") for v in variants) if variants else None
+                if in_stock is False:
+                    _log_variant_diagnostics(product_title, p, variants)
                 logging.info(
                     "Correspondencia exata por codigo '%s' -> produto '%s' do catalogo.",
                     code, p.get("title", ""),
@@ -538,6 +568,8 @@ def search_shopify_products_json(product_title: str, brand_cfg: dict, settings: 
     if matched:
         variants = best_product.get("variants", [])
         in_stock = any(v.get("available") for v in variants) if variants else None
+        if in_stock is False:
+            _log_variant_diagnostics(product_title, best_product, variants)
 
     return {
         "title": best_product.get("title", ""),
