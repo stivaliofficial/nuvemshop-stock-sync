@@ -12,7 +12,7 @@
     "auto_reenable_if_back_in_stock": false,
     "log_file": "stock_sync.log"
   },
-  "_status": "FASE 2 - 2026-09-21. dry_run agora e configuravel POR MARCA (ver chave 'dry_run' dentro de cada marca abaixo); o 'dry_run' aqui em settings e so o padrao para marcas que nao especificarem o proprio (fica true por seguranca - toda marca nova nasce em modo teste ate ser validada). New Rock: validada, rodando de verdade (dry_run:false na propria marca). TwoJeys: entrando agora em teste (dry_run:true na propria marca), mesma estrategia Shopify da New Rock. Ver /areas/estoque-inteligente.md para o historico completo.",
+  "_status": "FASE 2 - 2026-09-22. dry_run configuravel POR MARCA (ver chave 'dry_run' dentro de cada marca abaixo); o 'dry_run' aqui em settings e so o padrao para marcas que nao especificarem o proprio (fica true por seguranca - toda marca nova nasce em modo teste ate ser validada). New Rock: EM PRODUCAO. TwoJeys: EM PRODUCAO a partir de agora, por decisao explicita do Luiz - aceitou o risco residual do sinal 'sem variante disponivel' (achamos 3/3 falsos positivos numa amostra manual, causa suspeita: mercado/regiao no feed publico da Shopify) em troca de velocidade, dado que restam 13 marcas. Perdas pontuais de produto sao aceitaveis; cliente pode contatar por fora se quiser algo que sumiu por engano.",
   "_comment_brands": "Chave = trecho do titulo do produto (minusculo) usado para identificar a marca. O script procura essa chave dentro do titulo do produto da Nuvemshop para decidir qual site pesquisar. Cada marca pode ter sua propria chave 'dry_run' (true/false) que sobrescreve o padrao de settings so para ela.",
   "brands": {
     "new rock": {
@@ -26,8 +26,8 @@
       "display_name": "TwoJeys",
       "strategy": "shopify_products_json",
       "products_json_url": "https://twojeys.com/products.json?limit=250",
-      "dry_run": true,
-      "_nota": "EM TESTE desde 2026-09-21. URL do catalogo e uma suposicao baseada no mesmo padrao da New Rock (loja Shopify) - confirmar no primeiro log se o catalogo carrega corretamente antes de confiar nos resultados."
+      "dry_run": false,
+      "_nota": "EM PRODUCAO desde 2026-09-22, por decisao explicita do Luiz apos ver o risco residual conhecido do sinal 'sem variante disponivel'. Script tem logging de diagnostico ativo para esses casos (ver funcao _log_variant_diagnostics) - revisar os logs de tempos em tempos para eventualmente investigar e corrigir a causa raiz."
     }
   },
   "_comment": "Marcas ainda fora desta lista (nao apagadas do projeto, so aguardando validacao): dr. martens/dr martens (URL de busca quebrada - site redesenhado), carhartt (URL retorna 404), chrome hearts, dries van noten, gentle monster (busca conecta mas quase nunca encontra match), maison mihara, miista (rate limit 429), rick owens (bloqueio Cloudflare), timberland, vetements, vilebrequin (URL retorna 404). Golden Goose foi removida definitivamente - nao faz parte do catalogo da STIVALI."
