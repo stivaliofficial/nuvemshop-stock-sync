@@ -633,8 +633,16 @@ def process_product(product: dict, brands_config: dict, settings: dict, user_age
                      product_id, sj_result["title"], sj_result["similarity"], sj_result.get("match_method", "?"))
 
         if sj_result["in_stock"] is False:
-            logging.info("[%s] Sem variantes disponiveis no catalogo -> desativar.", product_id)
-            deactivate_product(product_id, product_title, effective_dry_run, client)
+            if brand_cfg.get("trust_variant_availability", True):
+                logging.info("[%s] Sem variantes disponiveis no catalogo -> desativar.", product_id)
+                deactivate_product(product_id, product_title, effective_dry_run, client)
+            else:
+                logging.info(
+                    "[%s] Catalogo reporta sem variantes disponiveis, mas esta marca tem "
+                    "trust_variant_availability=false (sinal conhecido como pouco confiavel para "
+                    "ela) - NENHUMA ACAO TOMADA. Revise manualmente se quiser confirmar.",
+                    product_id,
+                )
         elif sj_result["in_stock"] is True:
             logging.info("[%s] Disponivel no catalogo Shopify.", product_id)
             if settings.get("auto_reenable_if_back_in_stock") and not product.get("published", True):

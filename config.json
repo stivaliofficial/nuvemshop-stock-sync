@@ -27,7 +27,8 @@
       "strategy": "shopify_products_json",
       "products_json_url": "https://twojeys.com/products.json?limit=250",
       "dry_run": false,
-      "_nota": "EM PRODUCAO desde 2026-09-22, por decisao explicita do Luiz apos ver o risco residual conhecido do sinal 'sem variante disponivel'. Script tem logging de diagnostico ativo para esses casos (ver funcao _log_variant_diagnostics) - revisar os logs de tempos em tempos para eventualmente investigar e corrigir a causa raiz."
+      "trust_variant_availability": false,
+      "_nota": "EM PRODUCAO desde 2026-09-22. CORRIGIDO em 2026-09-27: o sinal 'sem variante disponivel' do feed publico da Shopify se mostrou nao confiavel para esta marca (3/3 casos checados manualmente no site estavam disponiveis de verdade; 62 produtos foram desativados por engano na execucao #51 de 23/09 e reativados manualmente). Causa suspeita: mercado/regiao no feed publico, ja que o site pede selecao de pais. Com trust_variant_availability:false, o script NUNCA MAIS desativa por esse motivo - so registra no log para revisao manual. A marca continua protegida pelo sinal 'produto nao encontrado no catalogo', que e mais confiavel."
     }
   },
   "_comment": "Marcas ainda fora desta lista (nao apagadas do projeto, so aguardando validacao): dr. martens/dr martens (URL de busca quebrada - site redesenhado), carhartt (URL retorna 404), chrome hearts, dries van noten, gentle monster (busca conecta mas quase nunca encontra match), maison mihara, miista (rate limit 429), rick owens (bloqueio Cloudflare), timberland, vetements, vilebrequin (URL retorna 404). Golden Goose foi removida definitivamente - nao faz parte do catalogo da STIVALI."
