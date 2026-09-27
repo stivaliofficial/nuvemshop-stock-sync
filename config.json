@@ -29,6 +29,22 @@
       "dry_run": false,
       "trust_variant_availability": false,
       "_nota": "EM PRODUCAO desde 2026-09-22. CORRIGIDO em 2026-09-27: o sinal 'sem variante disponivel' do feed publico da Shopify se mostrou nao confiavel para esta marca (3/3 casos checados manualmente no site estavam disponiveis de verdade; 62 produtos foram desativados por engano na execucao #51 de 23/09 e reativados manualmente). Causa suspeita: mercado/regiao no feed publico, ja que o site pede selecao de pais. Com trust_variant_availability:false, o script NUNCA MAIS desativa por esse motivo - so registra no log para revisao manual. A marca continua protegida pelo sinal 'produto nao encontrado no catalogo', que e mais confiavel."
+    },
+    "dr. martens": {
+      "display_name": "Dr. Martens",
+      "search_url_template": "https://www.drmartens.com/nl/nl/search?text={query}",
+      "product_link_selectors": ["a.product-tile-link", "a.product-item-link", "a[href*='/p/']"],
+      "out_of_stock_keywords": ["niet beschikbaar", "uitverkocht", "tijdelijk niet leverbaar", "not available", "sold out", "out of stock"],
+      "buy_button_keywords": ["in winkelwagen", "toevoegen aan winkelwagen", "add to bag", "add to cart"],
+      "_nota": "EM TESTE desde 2026-09-27. Site NAO e Shopify (historicamente SAP Hybris/Commerce Cloud), entao usa busca por HTML, nao catalogo JSON. RISCO CONHECIDO: um fetch direto de teste foi bloqueado por protecao anti-bot no dominio principal - a URL de busca exata (search_url_template) e uma SUPOSICAO baseada no padrao comum dessa plataforma, nao foi confirmada. Pode ser um caso dificil como a Rick Owens (busca sempre indisponivel por bloqueio). Testar em dry-run primeiro e revisar o log antes de qualquer decisao - se search_url_template estiver errado ou bloqueado, o script protege sozinho (SEARCH_UNAVAILABLE = nenhuma acao), mas nao vai conseguir sincronizar nada ate resolvermos a URL/bloqueio certo."
+    },
+    "dr martens": {
+      "display_name": "Dr. Martens",
+      "search_url_template": "https://www.drmartens.com/nl/nl/search?text={query}",
+      "product_link_selectors": ["a.product-tile-link", "a.product-item-link", "a[href*='/p/']"],
+      "out_of_stock_keywords": ["niet beschikbaar", "uitverkocht", "tijdelijk niet leverbaar", "not available", "sold out", "out of stock"],
+      "buy_button_keywords": ["in winkelwagen", "toevoegen aan winkelwagen", "add to bag", "add to cart"],
+      "_nota": "Chave duplicada sem o ponto, para pegar produtos cadastrados como 'DR MARTENS' (sem ponto) na Stivali, alem de 'DR. MARTENS' (com ponto, chave acima). Mesma configuracao das duas."
     }
   },
   "_comment": "Marcas ainda fora desta lista (nao apagadas do projeto, so aguardando validacao): dr. martens/dr martens (URL de busca quebrada - site redesenhado), carhartt (URL retorna 404), chrome hearts, dries van noten, gentle monster (busca conecta mas quase nunca encontra match), maison mihara, miista (rate limit 429), rick owens (bloqueio Cloudflare), timberland, vetements, vilebrequin (URL retorna 404). Golden Goose foi removida definitivamente - nao faz parte do catalogo da STIVALI."
