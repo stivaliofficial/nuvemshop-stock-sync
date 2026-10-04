@@ -90,8 +90,14 @@ def convert_bra(band, cup):
 
 # ---------------------------------------------------------------- preço
 def final_price(eur, pricing):
-    """EUR x multiplicador + valor fixo, sem centavos (corta)."""
-    return int(math.floor(eur * pricing["multiplier"] + pricing["fixed_brl"]))
+    """EUR x multiplicador + valor fixo (sem centavos). O valor fixo pode mudar por faixa de preço:
+    pricing['tiers'] = [{'max_eur': 30, 'fixed_brl': 1450}] vale para peças até €30."""
+    fixed = pricing["fixed_brl"]
+    for t in sorted(pricing.get("tiers", []), key=lambda t: t["max_eur"]):
+        if eur <= t["max_eur"]:
+            fixed = t["fixed_brl"]
+            break
+    return int(math.floor(eur * pricing["multiplier"] + fixed))
 
 
 # ---------------------------------------------------------------- rede

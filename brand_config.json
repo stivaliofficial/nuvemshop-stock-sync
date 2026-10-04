@@ -12,7 +12,13 @@
       "currency": "EUR",
       "pricing": {
         "multiplier": 6.5,
-        "fixed_brl": 1987
+        "fixed_brl": 1987,
+        "tiers": [
+          {
+            "max_eur": 30,
+            "fixed_brl": 1450
+          }
+        ]
       },
       "category_path": [
         "MARCAS",
