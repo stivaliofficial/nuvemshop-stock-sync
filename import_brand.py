@@ -823,6 +823,13 @@ def resolve_category(path, cats):
     return found["id"] if found else None
 
 
+def slugify(text):
+    """Endereço do produto: minúsculo, sem acento, só letras/números e hífen."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+    return re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9]+", "-", t)).strip("-")
+
+
 def build_payload(brand, p, tr, bcfg, cat_ids):
     d = bcfg["defaults"]
     desc = build_description(brand, p["name"], tr)
@@ -841,7 +848,7 @@ def build_payload(brand, p, tr, bcfg, cat_ids):
     return {
         "name": {"pt": p["name"]},
         "description": {"pt": desc},
-        "handle": {"pt": p["handle"]},
+        "handle": {"pt": slugify(tr.get("handle_pt") or p["handle"])},
         "published": True,
         "free_shipping": False,
         "requires_shipping": True,
