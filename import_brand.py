@@ -172,6 +172,31 @@ def strip_tags(s):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
 
 
+SIZE_SUFFIX_RE = re.compile(r"-(?:\d{2}(?:DDD|DD|[A-G])|XXS|XS|S|M|L|XL|2X|3X|4X|5X|SM|LXL|XXSXS)$", re.I)
+PAGE_IMG_RE = re.compile(r"(?:https?:)?//[A-Za-z0-9.\-]*(?:skims\.imgix\.net|cdn\.shopify\.com)/[^\"'\s\\)<>]+?\.(?:jpe?g|png|webp)", re.I)
+
+
+def images_by_code(page, skus):
+    """Fotos da página cujo nome de arquivo traz o número do estilo e o código da cor deste produto."""
+    cores = set()
+    for sku in skus:
+        if not sku:
+            continue
+        core = SIZE_SUFFIX_RE.sub("", sku.strip())
+        toks = [t for t in core.split("-") if t]
+        if len(toks) >= 2:
+            cores.add((toks[-2].upper(), toks[-1].upper()))
+    if not cores:
+        return []
+    out = []
+    for m in PAGE_IMG_RE.finditer(page):
+        u = m.group(0)
+        fname = u.split("?")[0].rsplit("/", 1)[-1].upper()
+        if any(a in fname and b in fname for a, b in cores):
+            out.append(u)
+    return out
+
+
 def get_product_js(base_url, handle, attempts):
     """Tenta o endpoint padrão da Shopify (.js). Guarda o que aconteceu em attempts."""
     for url in (f"{base_url}/products/{handle}.js",
@@ -294,7 +319,102 @@ def shape_product(p, handle):
             "options": [{"name": n} for n in names], "variants": variants, "images": imgs}
 
 
+BRA_NAME_RE = re.compile(r"(?<!\d)(\d{2})\s*[-/ ]?\s*(DDD|DD|[A-G])\s*$", re.I)
+BRA_SKU_RE = re.compile(r"-(\d{2})(DDD|DD|[A-G])$", re.I)
+CLOTH_RE = re.compile(
+    r"(?:^|[\s/\-])(XXS/XS|S/M|L/XL|2X/3X|4X/5X|XXS|XS|S|M|L|XL|2X|3X|4X|5X)\s*$", re.I)
+
+
+def _txt(x):
+    if isinstance(x, dict):
+        return str(x.get("name") or x.get("value") or "")
+    return "" if x is None else str(x)
+
+
+def _availability(v):
+    offers = v.get("offers")
+    if isinstance(offers, list):
+        offers = offers[0] if offers else None
+    a = _txt((offers or {}).get("availability")).lower() if isinstance(offers, dict) else ""
+    if any(k in a for k in ("instock", "limitedavailability", "onlineonly")):
+        return True
+    if any(k in a for k in ("outofstock", "soldout", "discontinued")):
+        return False
+    return None
+
+
+def _variant_size(v):
+    """Devolve ('bra', faixa, taça) | ('size', texto) | None, olhando campos explícitos, nome e SKU."""
+    band = cup = None
+    texts = [_txt(v.get("size"))]
+    for ap in v.get("additionalProperty") or []:
+        if not isinstance(ap, dict):
+            continue
+        n, val = _txt(ap.get("name")).lower(), _txt(ap.get("value"))
+        if "band" in n:
+            band = val
+        elif "cup" in n:
+            cup = val
+        elif "size" in n:
+            texts.append(val)
+    if band and cup:
+        return ("bra", band, cup)
+    name, sku = _txt(v.get("name")).strip(), _txt(v.get("sku")).strip()
+    for t in texts + [name]:
+        m = BRA_NAME_RE.search(t.strip())
+        if m:
+            return ("bra", m.group(1), m.group(2))
+        m = CLOTH_RE.search(t.strip())
+        if m:
+            return ("size", m.group(1))
+    m = BRA_SKU_RE.search(sku)
+    if m:
+        return ("bra", m.group(1), m.group(2))
+    m = CLOTH_RE.search(sku)
+    if m:
+        return ("size", m.group(1))
+    return None
+
+
+def shape_from_ld(ld, page, handle):
+    """Monta o produto a partir do bloco schema.org ProductGroup da página."""
+    if not ld:
+        return None
+    hv = ld.get("hasVariant")
+    if not isinstance(hv, list) or not hv:
+        return None
+    parsed = [(v, _variant_size(v)) for v in hv if isinstance(v, dict)]
+    kinds = {p[0] for _, p in parsed if p}
+    if not kinds:
+        return None
+    is_bra = "bra" in kinds
+    options = [{"name": "Band Size"}, {"name": "Cup Size"}] if is_bra else [{"name": "Size"}]
+    variants = []
+    for v, p in parsed:
+        if not p:
+            continue
+        if is_bra:
+            if p[0] != "bra":
+                continue
+            o1, o2 = p[1], p[2]
+        else:
+            o1, o2 = p[1], None
+        variants.append({"option1": o1, "option2": o2, "option3": None,
+                         "available": _availability(v), "sku": _txt(v.get("sku")) or None})
+    imgs = []
+    for src in [ld.get("image")] + [v.get("image") for v in hv if isinstance(v, dict)]:
+        collect_urls(src, imgs)
+    title = _txt(ld.get("name"))
+    tag = re.search(r"<title>(.*?)</title>", page, re.S)
+    if "|" not in title and tag:
+        title = re.sub(r"\s*\|\s*SKIMS\s*$", "", html.unescape(tag.group(1)).strip(), flags=re.I)
+    return {"title": title, "handle": handle, "options": options, "variants": variants, "images": imgs}
+
+
 def product_from_page(page, handle):
+    js = shape_from_ld(parse_ld(page), page, handle)
+    if js and js["variants"]:
+        return js, -1
     found = []
     for b in extract_json_blobs(page):
         find_products(b, found)
@@ -434,14 +554,19 @@ def process(handle, bcfg, translations):
     n_found = 0
     if not js:
         js, n_found = product_from_page(page, handle)
-        source = "página"
+        source = "json-ld" if n_found == -1 else "página"
     scripts = [{"attrs": a.strip()[:80], "len": len(b), "head": b.strip()[:100]}
                for a, b in re.findall(r"<script([^>]*)>(.*?)</script>", page, re.S | re.I)][:25]
     out["debug"] = {"fonte_variacoes": source if js else None, "tentativas_js": attempts,
                     "produtos_com_variantes_na_pagina": n_found, "tamanho_html": len(page),
                     "scripts": scripts, "urls_imgix_na_pagina": len(re.findall(r"skims\.imgix\.net", page)),
                     "titulo_pagina": (re.search(r"<title>(.*?)</title>", page, re.S) or [None, ""])[1][:100]}
+    ld0 = parse_ld(page) or {}
+    hv0 = ld0.get("hasVariant") if isinstance(ld0.get("hasVariant"), list) else []
+    out["debug"]["json_ld"] = {"tipo": ld0.get("@type"), "chaves": list(ld0.keys())[:30],
+                               "n_variantes": len(hv0), "amostra_variantes": hv0[:3]}
     if not js or not js.get("variants"):
+        out["debug"]["json_ld_bruto"] = json.dumps(ld0, ensure_ascii=False)[:20000]
         out["issues"].append("variações: não achei pelo .js nem dentro da página")
         return out
     out["fonte_variacoes"] = source
@@ -480,9 +605,18 @@ def process(handle, bcfg, translations):
             continue
         seen_img.add(key)
         imgs.append(u)
+    extra = images_by_code(page, [v.get("sku") for v in js.get("variants", [])])
+    n_before = len(imgs)
+    for u in extra:
+        u = norm_url(u)
+        key = u.split("?")[0].rsplit("/", 1)[-1].lower()
+        if key not in seen_img:
+            seen_img.add(key)
+            imgs.append(u)
     cap = bcfg.get("max_images", 0)
     out["images"] = imgs[:cap] if cap else imgs
-    out["image_sources"] = {"variacoes_js": len(js.get("images", [])), "json_ld": len([u for u in ld_urls if u])}
+    out["image_sources"] = {"variacoes_js": len(js.get("images", [])), "json_ld": len([u for u in ld_urls if u]),
+                            "por_codigo_da_pagina": len(imgs) - n_before}
     if not out["images"]:
         out["issues"].append("sem fotos")
 
