@@ -317,6 +317,57 @@ def fabric_groups(page, limit=8):
     return groups
 
 
+def style_key(skus):
+    """'BD-THG-9551W-ONX-XXS' -> 'BD-THG-9551W' (a peça, sem a cor e sem o tamanho)."""
+    for sku in skus:
+        if not sku:
+            continue
+        toks = [t for t in sku.upper().split("-") if t]
+        for i, t in enumerate(toks):
+            if NUM_TOKEN_RE.match(t):
+                return "-".join(toks[: i + 1])
+    return ""
+
+
+def sibling_handles(page, handle, color, limit=40):
+    """Endereços de outras cores da mesma peça que aparecem na própria página (mesmo começo de endereço)."""
+    slug = slugify(color) if color else ""
+    if slug and handle.endswith("-" + slug):
+        prefix = handle[: -len(slug)]
+    else:
+        prefix = handle.rsplit("-", 1)[0] + "-"
+    rx = re.compile(r"(?<![a-z0-9\-])(" + re.escape(prefix) + r"[a-z0-9][a-z0-9\-]*)")
+    out = []
+    for m in rx.finditer(page):
+        h = m.group(1).rstrip("-")
+        if h != handle and h not in out and "variant" not in h:
+            out.append(h)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _fill(x, cor, slug):
+    if isinstance(x, str):
+        return x.replace("{COR}", cor).replace("{cor_slug}", slug)
+    if isinstance(x, list):
+        return [_fill(i, cor, slug) for i in x]
+    if isinstance(x, dict):
+        return {k: _fill(v, cor, slug) for k, v in x.items()}
+    return x
+
+
+def pick_translation(translations, handle, skey, color):
+    """Texto próprio do endereço; senão o texto da peça ('estilo:<chave>'), trocando {COR} e {cor_slug}."""
+    tr = translations.get(handle)
+    if tr:
+        return tr, "endereço"
+    base = translations.get("estilo:" + skey) if skey else None
+    if not base:
+        return None, None
+    return _fill(base, (color or "").title(), slugify(color or "")), "estilo"
+
+
 def get_product_js(base_url, handle, attempts):
     """Tenta o endpoint padrão da Shopify (.js). Guarda o que aconteceu em attempts."""
     for url in (f"{base_url}/products/{handle}.js",
@@ -627,22 +678,16 @@ GAP = "<p><br></p>"  # linha em branco entre os blocos
 
 
 def build_description(brand, name_full, tr):
-    """SKIMS / NOME / DESCRIÇÃO (texto em português) / CAIMENTO & MATERIAL (só o Fit & Fabric) / selos,
-    com uma linha em branco entre os blocos."""
+    """Mesmo padrão dos anúncios formatados à mão:
+    SKIMS + NOME (linhas coladas) / linha em branco / Título 2 DESCRIÇÃO + texto logo abaixo /
+    linha em branco / Título 2 CAIMENTO & MATERIAL + tópicos logo abaixo / linha em branco / selos."""
     esc = html.escape
     paras = tr["descricao"] if isinstance(tr["descricao"], list) else [tr["descricao"]]
-    blocks = [
-        f"<p><strong>{esc(brand)}</strong></p>",
-        f"<p><strong>{esc(name_full)}</strong></p>",
-        "<p><strong>DESCRIÇÃO</strong></p>",
-    ]
-    blocks += [f"<p>{esc(p)}</p>" for p in paras]
-    blocks += [
-        "<p><strong>CAIMENTO &amp; MATERIAL</strong></p>",
-        "<p>" + "<br>".join("• " + esc(x) for x in tr["caimento_material"]) + "</p>",
-        FOOTER,
-    ]
-    return GAP.join(blocks)
+    head = f"<p><strong>{esc(brand)}</strong></p><p><strong>{esc(name_full)}</strong></p>"
+    desc = "<h2><strong>DESCRIÇÃO</strong></h2>" + GAP.join(f"<p>{esc(p)}</p>" for p in paras)
+    fit = ("<h2><strong>CAIMENTO &amp; MATERIAL</strong></h2>"
+           "<p>" + "<br>".join("• " + esc(x) for x in tr["caimento_material"]) + "</p>")
+    return GAP.join([head, desc, fit, FOOTER])
 
 
 def translation_ok(tr):
@@ -650,7 +695,7 @@ def translation_ok(tr):
     return bool(tr) and all(tr.get(k) for k in need)
 
 
-def process(handle, bcfg, translations):
+def process(handle, bcfg, translations, expected_style=None):
     out = {"handle": handle, "issues": [], "warnings": []}
     base = bcfg["base_url"]
     try:
@@ -751,8 +796,16 @@ def process(handle, bcfg, translations):
     out["description_full_en"] = full_description(page, short)
     out["grupos_ficha"] = fabric_groups(page)
     out["general_title"] = name.lower()
-    tr = translations.get(handle)
+    skey = style_key([v.get("sku") for v in js.get("variants", [])])
+    out["style_key"] = skey
+    if expected_style is not None and skey != expected_style:
+        out["descartar"] = True
+        out["issues"].append("não é a mesma peça (outro estilo): ignorada")
+    out["irmas_cores"] = sibling_handles(page, handle, color) if skey else []
+    tr, fonte_tr = pick_translation(translations, handle, skey, color)
     out["has_translation"] = translation_ok(tr)
+    out["traducao_fonte"] = fonte_tr
+    out["traducao_usada"] = tr if out["has_translation"] else None
     if not out["has_translation"]:
         out["issues"].append("falta tradução em translations_<marca>.json")
     return out
@@ -864,12 +917,61 @@ def build_payload(brand, p, tr, bcfg, cat_ids):
 
 
 # ---------------------------------------------------------------- main
+def run_queue(handles, bcfg, translations, cores_on, max_total):
+    """Processa a lista da aba e, se ligado, as outras cores de cada peça (confirmadas pelo código do estilo)."""
+    queue, seen = list(handles), set(handles)
+    origem = {h: "aba" for h in queue}
+    estilo_de, results, blocked_in_row, i = {}, [], 0, 0
+    while i < len(queue):
+        h = queue[i]
+        i += 1
+        p = process(h, bcfg, translations, expected_style=estilo_de.get(h))
+        p["origem"] = origem[h]
+        results.append(p)
+        blocked_in_row = blocked_in_row + 1 if p.get("blocked") else 0
+        if p.get("descartar"):
+            print(f"- [IGNORADA] {h}: não é a mesma peça")
+            time.sleep(0.5)
+            continue
+        status = "OK" if not p["issues"] else "PENDÊNCIA"
+        tag = " (outra cor)" if origem[h] != "aba" else ""
+        print(f"- [{status}]{tag} {p.get('name', h)} | EUR {p.get('eur')} -> R$ {p.get('final_brl')} | "
+              f"{len(p.get('variants', []))} tamanhos | {len(p.get('images', []))} fotos")
+        for it in p["issues"]:
+            print(f"    ! {it}")
+        d = p.get("debug") or {}
+        if d and any("variações" in it for it in p["issues"]) and sum(1 for r in results if r is not p and r.get("debug_shown")) < 2:
+            p["debug_shown"] = True
+            print(f"    [diagnóstico] .js: {[(a.get('status'), a.get('content_type', '')[:25]) for a in d.get('tentativas_js', [])]}"
+                  f" | scripts na página: {len(d.get('scripts', []))} | produtos achados: {d.get('produtos_com_variantes_na_pagina')}"
+                  f" | imagens imgix: {d.get('urls_imgix_na_pagina')}")
+        for w in p["warnings"]:
+            print(f"    ~ {w}")
+        if cores_on and p.get("style_key"):
+            novas = 0
+            for c in p.get("irmas_cores", []):
+                if c not in seen and len(queue) < max_total:
+                    seen.add(c)
+                    queue.append(c)
+                    origem[c] = f"outra cor de {h}"
+                    estilo_de[c] = p["style_key"]
+                    novas += 1
+            if novas:
+                print(f"    + {novas} possível(is) outra(s) cor(es) desta peça na fila")
+        if blocked_in_row >= 3:
+            print("O site bloqueou 3 pedidos seguidos. Parando para não insistir.")
+            break
+        time.sleep(1.0)
+    return results
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--brand", required=True)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--handles", default="")
     ap.add_argument("--live", action="store_true")
+    ap.add_argument("--sem-cores", action="store_true", help="não procurar outras cores das peças")
     args = ap.parse_args()
 
     cfg = json.load(open("brand_config.json", encoding="utf-8"))
@@ -908,36 +1010,18 @@ def main():
     else:
         print("(sem token: pulando conferência de categorias)")
 
-    results, blocked_in_row = [], 0
-    for h in handles:
-        p = process(h, bcfg, translations)
-        results.append(p)
-        blocked_in_row = blocked_in_row + 1 if p.get("blocked") else 0
-        status = "OK" if not p["issues"] else "PENDÊNCIA"
-        print(f"- [{status}] {p.get('name', h)} | EUR {p.get('eur')} -> R$ {p.get('final_brl')} | "
-              f"{len(p.get('variants', []))} tamanhos | {len(p.get('images', []))} fotos")
-        for i in p["issues"]:
-            print(f"    ! {i}")
-        d = p.get("debug") or {}
-        if d and any("variações" in i for i in p["issues"]) and sum(1 for r in results if r is not p and r.get("debug_shown")) < 2:
-            p["debug_shown"] = True
-            print(f"    [diagnóstico] .js: {[(a.get('status'), a.get('content_type', '')[:25]) for a in d.get('tentativas_js', [])]}"
-                  f" | scripts na página: {len(d.get('scripts', []))} | produtos achados: {d.get('produtos_com_variantes_na_pagina')}"
-                  f" | imagens imgix: {d.get('urls_imgix_na_pagina')}")
-        for w in p["warnings"]:
-            print(f"    ~ {w}")
-        if blocked_in_row >= 3:
-            print("O site bloqueou 3 pedidos seguidos. Parando para não insistir.")
-            break
-        time.sleep(1.0)
+    cores_on = bcfg.get("include_other_colors", True) and not args.sem_cores
+    results = run_queue(handles, bcfg, translations, cores_on, bcfg.get("max_total", 400))
 
     created = skipped = 0
     if args.live:
         for p in results:
+            if p.get("descartar"):
+                continue
             if p["issues"]:
                 skipped += 1
                 continue
-            tr = translations[p["handle"]]
+            tr = p["traducao_usada"]
             cat_ids = [brand_cat] if brand_cat else []
             for g in bcfg.get("general_categories", []):
                 if re.search(g["title_regex"], p["general_title"], re.I):
@@ -960,9 +1044,13 @@ def main():
 
     with open(f"preview_{args.brand}.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
-    ok = sum(1 for p in results if not p["issues"])
-    print(f"\nResumo: {len(results)} lidos | {ok} sem pendência | "
-          f"{len(results) - ok} com pendência" + (f" | {created} criados | {skipped} pulados" if args.live else ""))
+    validos = [p for p in results if not p.get("descartar")]
+    ok = sum(1 for p in validos if not p["issues"])
+    extras = sum(1 for p in validos if str(p.get("origem", "")).startswith("outra cor"))
+    sem_texto = sum(1 for p in validos if not p.get("has_translation"))
+    print(f"\nResumo: {len(validos)} lidos ({len(validos) - extras} da aba + {extras} outras cores) | "
+          f"{ok} sem pendência | {len(validos) - ok} com pendência ({sem_texto} sem texto em português)"
+          + (f" | {created} criados | {skipped} pulados" if args.live else ""))
     print(f"Detalhes em preview_{args.brand}.json")
 
 
