@@ -97,6 +97,7 @@ def final_price(eur, pricing):
 # ---------------------------------------------------------------- rede
 def get(url, **kw):
     r = SESSION.get(url, timeout=30, **kw)
+    r.encoding = "utf-8"
     if r.status_code in (403, 429, 503):
         raise Blocked(f"{r.status_code} em {url}")
     r.raise_for_status()
@@ -234,6 +235,86 @@ def detail_snippets(page, limit=6):
         if len(found) >= limit:
             break
     return found
+
+
+def _unjs(t):
+    t = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), t)
+    return t.replace("\\n", " ").replace("\\\\", "\\")
+
+
+def full_description(page, short):
+    """O bloco do Google traz a descrição cortada ('...'); procura o texto completo na página."""
+    base = re.sub(r"(\.\.\.|…)\s*$", "", (short or "").strip())[:60]
+    m0 = re.match(r"[A-Za-z0-9 .,:;\-]+", base)
+    pref = (m0.group(0) if m0 else "").rstrip()
+    if len(pref) < 25:
+        return ""
+    best = ""
+    for m in re.finditer(re.escape(pref), page):
+        seg = page[m.start(): m.start() + 6000]
+        cut = re.search(r'\\+"|"', seg)
+        txt = _unjs(seg[: cut.start()] if cut else seg)
+        txt = strip_tags(txt)
+        if len(txt) > len(best):
+            best = txt
+    return best
+
+
+def fabric_groups(page, limit=8):
+    """Para cada composição ('61% Polyamide / 39% Elastane') da página oficial, devolve os textos que vêm
+    antes (modelo) e depois (cuidados, características). A página traz também os de produtos relacionados;
+    quem escolhe o grupo certo é a conferência com o nome/descrição do produto."""
+    body = main_content(page)
+    comp_re = re.compile(r"\d{1,3}%\s?[A-Za-z][A-Za-z ]{2,30}(?:\s*/\s*\d{1,3}%\s?[A-Za-z][A-Za-z ]{2,30})*")
+    noise = {"true", "false", "null"}
+    groups, seen = [], set()
+    for m in comp_re.finditer(body):
+        comp = m.group(0).strip()
+        a, b = max(0, m.start() - 700), min(len(body), m.end() + 1400)
+        k = body[a:m.start()].count(comp)
+        win = body[a:b].replace('\\\\\\"', "″").replace('\\"', '"')
+        pos = -1
+        for _ in range(k + 1):
+            pos = win.find(comp, pos + 1)
+            if pos < 0:
+                break
+        if pos < 0:
+            continue
+        depois, p = [], pos + len(comp)
+        pat = re.compile(r'"?\s*,\s*"([^"]{1,700})"')
+        while len(depois) < 5:
+            mm = pat.match(win, p)
+            if not mm:
+                break
+            depois.append(_unjs(mm.group(1)))
+            p = mm.end()
+        antes, pre = [], win[:pos].rstrip()
+        if pre.endswith('"'):
+            pre = pre[:-1]
+        for _ in range(3):
+            pre = pre.rstrip()
+            if pre.endswith(","):
+                pre = pre[:-1].rstrip()
+            if not pre.endswith('"'):
+                break
+            pre = pre[:-1]
+            i = pre.rfind('"')
+            if i < 0:
+                break
+            txt, pre = pre[i + 1:], pre[:i]
+            if not txt or txt in noise:
+                continue
+            if re.match(r"^_?\d+$", txt) or txt.startswith(("_", "gid://", "{", "[")):
+                break
+            antes.insert(0, _unjs(txt))
+        key = comp + "|" + (depois[0] if depois else "")
+        if key in seen:
+            continue
+        seen.add(key)
+        groups.append({"antes": antes, "composicao": comp, "depois": depois})
+        if len(groups) >= limit:
+            break
+    return groups
 
 
 def get_product_js(base_url, handle, attempts):
@@ -665,8 +746,10 @@ def process(handle, bcfg, translations):
     if not out["images"]:
         out["issues"].append("sem fotos")
 
-    out["detalhes_en"] = detail_snippets(page)
-    out["description_en"] = strip_tags((ld or {}).get("description", "") or js.get("description", ""))[:1500]
+    short = strip_tags((ld or {}).get("description", "") or js.get("description", ""))
+    out["description_en"] = short[:1500]
+    out["description_full_en"] = full_description(page, short)
+    out["grupos_ficha"] = fabric_groups(page)
     out["general_title"] = name.lower()
     tr = translations.get(handle)
     out["has_translation"] = translation_ok(tr)
