@@ -1,0 +1,24 @@
+{
+  "nuvemshop": {
+    "store_id": 3277373,
+    "contact": "contato@stivaliofficial.com"
+  },
+  "brands": {
+    "skims": {
+      "display_name": "SKIMS",
+      "base_url": "https://skims.com/en-es",
+      "collection_url": "https://skims.com/en-es/collections/eu-best-sellers",
+      "max_pages": 8,
+      "currency": "EUR",
+      "pricing": { "multiplier": 6.5, "fixed_brl": 1987 },
+      "category_path": ["MARCAS", "SKIMS", "MAIS VENDIDOS"],
+      "general_categories": [
+        { "title_regex": "\\b(t-shirt|tee|tank)\\b", "path": ["ROUPAS", "CAMISETAS & REGATAS"] },
+        { "title_regex": "\\bdress\\b", "path": ["ROUPAS", "VESTIDOS"] },
+        { "title_regex": "\\bpants?\\b", "path": ["ROUPAS", "CALÇAS"] }
+      ],
+      "defaults": { "weight_kg": "0.25", "width_cm": "25", "height_cm": "6", "depth_cm": "18", "stock": 3 },
+      "max_images": 0
+    }
+  }
+}
