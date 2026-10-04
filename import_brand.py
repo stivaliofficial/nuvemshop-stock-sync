@@ -172,15 +172,136 @@ def strip_tags(s):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
 
 
-def get_product_js(base_url, handle):
+def get_product_js(base_url, handle, attempts):
+    """Tenta o endpoint padrão da Shopify (.js). Guarda o que aconteceu em attempts."""
     for url in (f"{base_url}/products/{handle}.js",
                 f"{base_url.rsplit('/', 1)[0]}/products/{handle}.js"):
         try:
-            r = get(url)
-            return r.json()
-        except (ValueError, requests.HTTPError):
+            r = SESSION.get(url, timeout=30)
+            attempts.append({"url": url, "status": r.status_code,
+                             "content_type": r.headers.get("content-type", ""), "head": r.text[:120]})
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and data.get("variants"):
+                    return data
+        except Exception as e:  # noqa
+            attempts.append({"url": url, "error": str(e)[:150]})
+    return None
+
+
+def extract_json_blobs(page):
+    """Acha blocos JSON dentro dos <script> da página (inclusive window.X = {...})."""
+    blobs, dec = [], json.JSONDecoder()
+    for m in re.finditer(r"<script([^>]*)>(.*?)</script>", page, re.S | re.I):
+        attrs, body = m.group(1), m.group(2).strip()
+        if not body or len(body) > 4_000_000:
             continue
-    raise ValueError("não consegui ler as variações (.js)")
+        if body[0] in "{[":
+            try:
+                blobs.append(json.loads(body))
+                continue
+            except ValueError:
+                pass
+        tries = 0
+        for mm in re.finditer(r"=\s*(\{)", body):
+            tries += 1
+            if tries > 4:
+                break
+            try:
+                obj, _ = dec.raw_decode(body[mm.start(1):])
+                blobs.append(obj)
+            except ValueError:
+                continue
+    return blobs
+
+
+def _nodes(x):
+    if isinstance(x, dict):
+        if isinstance(x.get("nodes"), list):
+            return x["nodes"]
+        if isinstance(x.get("edges"), list):
+            return [e.get("node") for e in x["edges"] if isinstance(e, dict)]
+    return x if isinstance(x, list) else []
+
+
+def find_products(obj, out, depth=0):
+    if depth > 14:
+        return
+    if isinstance(obj, dict):
+        vs = _nodes(obj.get("variants")) if "variants" in obj else []
+        if vs and isinstance(vs[0], dict) and ("title" in obj or "handle" in obj):
+            out.append(obj)
+        for v in obj.values():
+            find_products(v, out, depth + 1)
+    elif isinstance(obj, list):
+        for v in obj:
+            find_products(v, out, depth + 1)
+
+
+IMG_RE = re.compile(r"\.(jpe?g|png|webp|gif)(\?|$)|imgix|cdn\.shopify", re.I)
+
+
+def collect_urls(x, out, depth=0):
+    if depth > 6:
+        return
+    if isinstance(x, str):
+        if x.startswith(("http", "//")) and IMG_RE.search(x):
+            out.append(x)
+    elif isinstance(x, dict):
+        for k in ("url", "src", "originalSrc", "transformedSrc"):
+            if k in x:
+                collect_urls(x[k], out, depth + 1)
+        for k in ("nodes", "edges", "node", "image", "preview"):
+            if k in x:
+                collect_urls(x[k], out, depth + 1)
+    elif isinstance(x, list):
+        for v in x:
+            collect_urls(v, out, depth + 1)
+
+
+def shape_product(p, handle):
+    """Converte o produto achado na página para o mesmo formato do .js da Shopify."""
+    raw_opts = p.get("options") or []
+    names = []
+    for o in raw_opts:
+        names.append(o.get("name") if isinstance(o, dict) else str(o))
+    variants = []
+    for v in _nodes(p.get("variants")):
+        if not isinstance(v, dict):
+            continue
+        vals = [None, None, None]
+        sel = v.get("selectedOptions")
+        if sel:
+            if not names:
+                names = [x.get("name") for x in sel]
+            for x in sel:
+                if x.get("name") in names[:3]:
+                    vals[names.index(x["name"])] = x.get("value")
+        else:
+            vals = [v.get("option1"), v.get("option2"), v.get("option3")]
+        av = v.get("available")
+        if av is None:
+            av = v.get("availableForSale")
+        if av is None and v.get("quantityAvailable") is not None:
+            av = (v.get("quantityAvailable") or 0) > 0
+        variants.append({"option1": vals[0], "option2": vals[1], "option3": vals[2],
+                         "available": av, "sku": v.get("sku")})
+    imgs = []
+    for k in ("images", "media", "featuredImage", "featured_image"):
+        if k in p:
+            collect_urls(p[k], imgs)
+    return {"title": p.get("title", ""), "handle": p.get("handle", handle),
+            "options": [{"name": n} for n in names], "variants": variants, "images": imgs}
+
+
+def product_from_page(page, handle):
+    found = []
+    for b in extract_json_blobs(page):
+        find_products(b, found)
+    if not found:
+        return None, 0
+    pick = next((p for p in found if p.get("handle") == handle), found[0])
+    return shape_product(pick, handle), len(found)
 
 
 def option_kinds(js):
@@ -211,6 +332,9 @@ def build_variants(js, defaults):
     variants, issues, bra_info, size_pairs = [], [], [], []
     seen = set()
     for v in js.get("variants", []):
+        if v.get("available") is None:
+            issues.append("estoque por tamanho desconhecido")
+            break
         if not v.get("available"):
             continue
         raw = {}
@@ -304,11 +428,23 @@ def process(handle, bcfg, translations):
     else:
         out["final_brl"] = final_price(eur, bcfg["pricing"])
 
-    try:
-        js = get_product_js(base, handle)
-    except Exception as e:  # noqa
-        out["issues"].append(f"variações: {e}")
+    attempts = []
+    js = get_product_js(base, handle, attempts)
+    source = ".js"
+    n_found = 0
+    if not js:
+        js, n_found = product_from_page(page, handle)
+        source = "página"
+    scripts = [{"attrs": a.strip()[:80], "len": len(b), "head": b.strip()[:100]}
+               for a, b in re.findall(r"<script([^>]*)>(.*?)</script>", page, re.S | re.I)][:25]
+    out["debug"] = {"fonte_variacoes": source if js else None, "tentativas_js": attempts,
+                    "produtos_com_variantes_na_pagina": n_found, "tamanho_html": len(page),
+                    "scripts": scripts, "urls_imgix_na_pagina": len(re.findall(r"skims\.imgix\.net", page)),
+                    "titulo_pagina": (re.search(r"<title>(.*?)</title>", page, re.S) or [None, ""])[1][:100]}
+    if not js or not js.get("variants"):
+        out["issues"].append("variações: não achei pelo .js nem dentro da página")
         return out
+    out["fonte_variacoes"] = source
 
     title = js.get("title", "")
     if "|" in title:
@@ -335,7 +471,8 @@ def process(handle, bcfg, translations):
     ld_imgs = (ld or {}).get("image") or []
     ld_imgs = [ld_imgs] if isinstance(ld_imgs, (str, dict)) else ld_imgs
     ld_urls = [norm_url(i.get("url") if isinstance(i, dict) else i) for i in ld_imgs]
-    for u in [norm_url(x) for x in js.get("images", [])] + ld_urls:
+    og = re.findall(r'property="og:image"\s+content="([^"]+)"', page)
+    for u in [norm_url(x) for x in js.get("images", [])] + ld_urls + [norm_url(x) for x in og]:
         if not u:
             continue
         key = u.split("?")[0].rsplit("/", 1)[-1].lower()
@@ -511,6 +648,12 @@ def main():
               f"{len(p.get('variants', []))} tamanhos | {len(p.get('images', []))} fotos")
         for i in p["issues"]:
             print(f"    ! {i}")
+        d = p.get("debug") or {}
+        if d and any("variações" in i for i in p["issues"]) and sum(1 for r in results if r is not p and r.get("debug_shown")) < 2:
+            p["debug_shown"] = True
+            print(f"    [diagnóstico] .js: {[(a.get('status'), a.get('content_type', '')[:25]) for a in d.get('tentativas_js', [])]}"
+                  f" | scripts na página: {len(d.get('scripts', []))} | produtos achados: {d.get('produtos_com_variantes_na_pagina')}"
+                  f" | imagens imgix: {d.get('urls_imgix_na_pagina')}")
         for w in p["warnings"]:
             print(f"    ~ {w}")
         if blocked_in_row >= 3:
