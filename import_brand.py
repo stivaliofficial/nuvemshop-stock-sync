@@ -965,6 +965,33 @@ def run_queue(handles, bcfg, translations, cores_on, max_total):
     return results
 
 
+def analisar_pecas(results):
+    """Marca cores com preço diferente das outras da mesma peça (provável promoção) e agrupa por peça."""
+    from collections import Counter, defaultdict
+    grupos = defaultdict(list)
+    for p in results:
+        if p.get("descartar") or not p.get("style_key") or p.get("eur") is None:
+            continue
+        grupos[p["style_key"]].append(p)
+    for key, ps in grupos.items():
+        comum = Counter(p["eur"] for p in ps).most_common(1)[0][0]
+        for p in ps:
+            if p["eur"] != comum:
+                p["preco_diferente"] = {"preco_das_outras_cores_eur": comum, "este_eur": p["eur"]}
+                p["warnings"].append(f"preço diferente das outras cores desta peça (€{p['eur']:g} em vez de €{comum:g}): promoção?")
+    return grupos
+
+
+def imprimir_resumo_pecas(grupos):
+    print(f"\nPEÇAS ENCONTRADAS: {len(grupos)}")
+    for key, ps in sorted(grupos.items()):
+        cor = ps[0].get("color") or ""
+        base = (ps[0].get("name") or "")
+        base = base[: -len(cor)].strip() if cor and base.endswith(cor) else base
+        promo = sum(1 for p in ps if p.get("preco_diferente"))
+        print(f"  {key} | {base} | {len(ps)} cor(es)" + (f" | {promo} com preço diferente" if promo else ""))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--brand", required=True)
@@ -1012,6 +1039,11 @@ def main():
 
     cores_on = bcfg.get("include_other_colors", True) and not args.sem_cores
     results = run_queue(handles, bcfg, translations, cores_on, bcfg.get("max_total", 400))
+    grupos = analisar_pecas(results)
+    for p in results:
+        if p.get("preco_diferente"):
+            print(f"  ~ PREÇO DIFERENTE: {p.get('name')} está a €{p['eur']:g} "
+                  f"(as outras cores: €{p['preco_diferente']['preco_das_outras_cores_eur']:g})")
 
     created = skipped = 0
     if args.live:
@@ -1051,6 +1083,7 @@ def main():
     print(f"\nResumo: {len(validos)} lidos ({len(validos) - extras} da aba + {extras} outras cores) | "
           f"{ok} sem pendência | {len(validos) - ok} com pendência ({sem_texto} sem texto em português)"
           + (f" | {created} criados | {skipped} pulados" if args.live else ""))
+    imprimir_resumo_pecas(grupos)
     print(f"Detalhes em preview_{args.brand}.json")
 
 
