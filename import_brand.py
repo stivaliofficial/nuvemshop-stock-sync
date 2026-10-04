@@ -172,29 +172,68 @@ def strip_tags(s):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
 
 
-SIZE_SUFFIX_RE = re.compile(r"-(?:\d{2}(?:DDD|DD|[A-G])|XXS|XS|S|M|L|XL|2X|3X|4X|5X|SM|LXL|XXSXS)$", re.I)
+NUM_TOKEN_RE = re.compile(r"^\d{3,5}[A-Z]?$")
+THUMB_RE = re.compile(r"_(?:x|\d+x)\d*\.(?:jpe?g|png|webp)$", re.I)
 PAGE_IMG_RE = re.compile(r"(?:https?:)?//[A-Za-z0-9.\-]*(?:skims\.imgix\.net|cdn\.shopify\.com)/[^\"'\s\\)<>]+?\.(?:jpe?g|png|webp)", re.I)
 
 
-def images_by_code(page, skus):
-    """Fotos da página cujo nome de arquivo traz o número do estilo e o código da cor deste produto."""
-    cores = set()
-    for sku in skus:
-        if not sku:
-            continue
-        core = SIZE_SUFFIX_RE.sub("", sku.strip())
-        toks = [t for t in core.split("-") if t]
-        if len(toks) >= 2:
-            cores.add((toks[-2].upper(), toks[-1].upper()))
-    if not cores:
+def code_pair(text):
+    """'BD-THG-9551W-ONX-LD-SKIMS_0035-SD' -> ('9551W', 'ONX'): número do estilo + código da cor."""
+    stem = text.strip().split("/")[-1].split("?")[0].rsplit(".", 1)[0].split("_")[0]
+    toks = [t for t in stem.upper().split("-") if t]
+    for i, t in enumerate(toks[:-1]):
+        if NUM_TOKEN_RE.match(t):
+            return (t, toks[i + 1])
+    return None
+
+
+def is_thumb(url):
+    return bool(THUMB_RE.search(url.split("?")[0]))
+
+
+def images_by_code(page, skus, known_images):
+    """Fotos da página cujo nome de arquivo traz o número do estilo e a cor deste produto."""
+    pares = set()
+    for t in list(skus) + list(known_images):
+        if t:
+            p = code_pair(t)
+            if p:
+                pares.add(p)
+    if not pares:
         return []
     out = []
     for m in PAGE_IMG_RE.finditer(page):
         u = m.group(0)
         fname = u.split("?")[0].rsplit("/", 1)[-1].upper()
-        if any(a in fname and b in fname for a, b in cores):
+        if is_thumb(u):
+            continue
+        if any(a in fname and b in fname for a, b in pares):
             out.append(u)
     return out
+
+
+def detail_snippets(page, limit=6):
+    """Trechos da página oficial com ficha de tecido/cuidado/caimento (texto em inglês, para tradução)."""
+    def clean(t):
+        t = t.replace("\\u0026", "&").replace("\\u003c", "<").replace("\\u003e", ">").replace('\\"', '"')
+        return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", t))).strip()
+    page = main_content(page)
+    keys = ("Fit & Fabric", "Fit &amp; Fabric", "Fit \\u0026 Fabric", "Machine wash", "Hand wash",
+            "Polyamide", "Elastane", "Cotton", "Modal", "Nylon", "Polyester", "Imported")
+    found, spans = [], []
+    for k in keys:
+        for m in re.finditer(re.escape(k), page):
+            st, en = max(0, m.start() - 350), min(len(page), m.end() + 650)
+            if any(st < e and en > s0 for s0, e in spans):
+                continue
+            spans.append((st, en))
+            txt = clean(page[st:en])
+            if txt and txt not in found:
+                found.append(txt[:1100])
+            break
+        if len(found) >= limit:
+            break
+    return found
 
 
 def get_product_js(base_url, handle, attempts):
@@ -503,25 +542,30 @@ def size_note_lines(bra_info, size_pairs):
     return []
 
 
-def build_description(brand, name_full, tr, size_lines):
+GAP = "<p><br></p>"  # linha em branco entre os blocos
+
+
+def build_description(brand, name_full, tr):
+    """SKIMS / NOME / DESCRIÇÃO (texto em português) / CAIMENTO & MATERIAL (só o Fit & Fabric) / selos,
+    com uma linha em branco entre os blocos."""
     esc = html.escape
-    fit = list(size_lines) + list(tr.get("caimento", []))
-    parts = [
+    paras = tr["descricao"] if isinstance(tr["descricao"], list) else [tr["descricao"]]
+    blocks = [
         f"<p><strong>{esc(brand)}</strong></p>",
         f"<p><strong>{esc(name_full)}</strong></p>",
         "<p><strong>DESCRIÇÃO</strong></p>",
-        f"<p>{esc(tr['descricao'])}</p>",
-        "<p><strong>TAMANHO &amp; CAIMENTO</strong></p>",
-        "<p>" + "<br>".join("• " + esc(x) for x in fit) + "</p>",
-        "<p><strong>MATERIAL &amp; CUIDADO</strong></p>",
-        "<p>" + "<br>".join("• " + esc(x) for x in tr["material"]) + "</p>",
+    ]
+    blocks += [f"<p>{esc(p)}</p>" for p in paras]
+    blocks += [
+        "<p><strong>CAIMENTO &amp; MATERIAL</strong></p>",
+        "<p>" + "<br>".join("• " + esc(x) for x in tr["caimento_material"]) + "</p>",
         FOOTER,
     ]
-    return "".join(parts)
+    return GAP.join(blocks)
 
 
 def translation_ok(tr):
-    need = ("descricao", "material", "seo_title", "seo_description", "tags")
+    need = ("descricao", "caimento_material", "seo_title", "seo_description", "tags")
     return bool(tr) and all(tr.get(k) for k in need)
 
 
@@ -601,16 +645,17 @@ def process(handle, bcfg, translations):
         if not u:
             continue
         key = u.split("?")[0].rsplit("/", 1)[-1].lower()
-        if key in seen_img:
+        if key in seen_img or is_thumb(u):
             continue
         seen_img.add(key)
         imgs.append(u)
-    extra = images_by_code(page, [v.get("sku") for v in js.get("variants", [])])
+    known = [u for u in imgs]
+    extra = images_by_code(page, [v.get("sku") for v in js.get("variants", [])], known)
     n_before = len(imgs)
     for u in extra:
         u = norm_url(u)
         key = u.split("?")[0].rsplit("/", 1)[-1].lower()
-        if key not in seen_img:
+        if key not in seen_img and not is_thumb(u):
             seen_img.add(key)
             imgs.append(u)
     cap = bcfg.get("max_images", 0)
@@ -620,6 +665,7 @@ def process(handle, bcfg, translations):
     if not out["images"]:
         out["issues"].append("sem fotos")
 
+    out["detalhes_en"] = detail_snippets(page)
     out["description_en"] = strip_tags((ld or {}).get("description", "") or js.get("description", ""))[:1500]
     out["general_title"] = name.lower()
     tr = translations.get(handle)
@@ -696,7 +742,7 @@ def resolve_category(path, cats):
 
 def build_payload(brand, p, tr, bcfg, cat_ids):
     d = bcfg["defaults"]
-    desc = build_description(brand, p["name"], tr, p["size_lines"])
+    desc = build_description(brand, p["name"], tr)
     variants = []
     for v in p["variants"]:
         variants.append({
