@@ -27,7 +27,7 @@
       ],
       "general_categories": [
         {
-          "title_regex": "\\b(t-shirt|tee|tank)\\b",
+          "title_regex": "\\b(t-shirt|tee|tank)\\b(?!\\s+bra)",
           "path": [
             "ROUPAS",
             "CAMISETAS & REGATAS"

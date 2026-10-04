@@ -824,11 +824,22 @@ class Nuvemshop:
         self.h = {"Authentication": f"bearer {token}", "Content-Type": "application/json",
                   "User-Agent": f"STIVALI Brand Importer ({contact})"}
 
+    def _req(self, method, path, tries=5, **kw):
+        """Repete sozinho quando a Nuvemshop pede para esperar (429) ou está instável (502/503/504)."""
+        for n in range(tries):
+            r = requests.request(method, f"{self.base}{path}", headers=self.h, **kw)
+            if r.status_code in (429, 502, 503, 504) and n < tries - 1:
+                espera = float(r.headers.get("Retry-After", 0) or 0) or min(60, 4 * 2 ** n)
+                print(f"    (Nuvemshop respondeu {r.status_code}; aguardando {espera:.0f}s e tentando de novo)")
+                time.sleep(espera)
+                continue
+            return r
+        return r
+
     def categories(self):
         out, page = [], 1
         while True:
-            r = requests.get(f"{self.base}/categories", headers=self.h,
-                             params={"per_page": 200, "page": page}, timeout=30)
+            r = self._req("GET", "/categories", params={"per_page": 200, "page": page}, timeout=30)
             if r.status_code == 404:
                 break
             r.raise_for_status()
@@ -840,8 +851,7 @@ class Nuvemshop:
         return out
 
     def exists(self, name):
-        r = requests.get(f"{self.base}/products", headers=self.h,
-                         params={"q": name, "per_page": 10, "fields": "id,name"}, timeout=30)
+        r = self._req("GET", "/products", params={"q": name, "per_page": 10, "fields": "id,name"}, timeout=30)
         if r.status_code == 404:
             return False
         r.raise_for_status()
@@ -852,7 +862,7 @@ class Nuvemshop:
         return False
 
     def create(self, payload):
-        r = requests.post(f"{self.base}/products", headers=self.h, json=payload, timeout=300)
+        r = self._req("POST", "/products", json=payload, timeout=300)
         if r.status_code >= 400:
             raise RuntimeError(f"{r.status_code}: {r.text[:500]}")
         return r.json()
@@ -1043,7 +1053,7 @@ def main():
     else:
         print("(sem token: pulando conferência de categorias)")
 
-    cores_on = bcfg.get("include_other_colors", True) and not args.sem_cores
+    cores_on = bcfg.get("include_other_colors", True) and not args.sem_cores and not args.handles
     results = run_queue(handles, bcfg, translations, cores_on, bcfg.get("max_total", 400))
     grupos = analisar_pecas(results)
     for p in results:
@@ -1053,6 +1063,9 @@ def main():
 
     created = skipped = 0
     if args.live:
+        a_criar = [p for p in results if not p.get("descartar") and not p["issues"]]
+        print(f"\nCriando na loja: {len(a_criar)} anúncios sem pendência (os que já existem são pulados)...")
+        feitos = 0
         for p in results:
             if p.get("descartar"):
                 continue
@@ -1074,8 +1087,10 @@ def main():
                     skipped += 1
                     continue
                 res = ns.create(build_payload(brand, p, tr, bcfg, cat_ids))
-                print(f"  + criado: {p['name']} (id {res.get('id')})")
+                feitos += 1
+                print(f"  + criado [{feitos}/{len(a_criar)}]: {p['name']} (id {res.get('id')})")
                 created += 1
+                time.sleep(1.0)
             except Exception as e:  # noqa
                 print(f"  ! falhou: {p['name']}: {e}")
                 skipped += 1
