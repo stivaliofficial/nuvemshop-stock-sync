@@ -1,0 +1,50 @@
+name: Importar marca (SKIMS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      brand:
+        description: 'Marca (nome no brand_config.json)'
+        required: true
+        default: 'skims'
+      limit:
+        description: 'Quantos produtos testar (vazio = todos)'
+        required: false
+        default: '3'
+      handles:
+        description: 'Ou lista de produtos específicos, separados por vírgula'
+        required: false
+        default: ''
+      live:
+        description: 'Criar de verdade na loja (desmarcado = só teste)'
+        type: boolean
+        default: false
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Rodar importador
+        env:
+          NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
+          BRAND: ${{ inputs.brand }}
+          LIMIT: ${{ inputs.limit }}
+          HANDLES: ${{ inputs.handles }}
+          LIVE: ${{ inputs.live }}
+        run: |
+          ARGS="--brand $BRAND"
+          [ -n "$LIMIT" ] && ARGS="$ARGS --limit $LIMIT"
+          [ -n "$HANDLES" ] && ARGS="$ARGS --handles $HANDLES"
+          [ "$LIVE" = "true" ] && ARGS="$ARGS --live"
+          python import_brand.py $ARGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview
+          path: preview_*.json
