@@ -118,7 +118,30 @@
       },
       "max_images": 0,
       "include_other_colors": true,
-      "max_total": 400
+      "max_total": 400,
+      "handle_prefix": "ludovic-de-saint-sernin-x-skims-",
+      "extra_collection_urls": [
+        "https://skims.com/en-es/collections/ludovic-de-saint-sernin-x-skims-tops",
+        "https://skims.com/en-es/collections/ludovic-de-saint-sernin-x-skims-dresses",
+        "https://skims.com/en-es/collections/ludovic-de-saint-sernin-x-skims-pants"
+      ],
+      "ignore_handles_regex": "-(tops|dresses|pants)$",
+      "seed_handles": [
+        "ludovic-de-saint-sernin-x-skims-waxed-cotton-mini-dress-sienna",
+        "ludovic-de-saint-sernin-x-skims-waxed-cotton-bandeau-clay",
+        "ludovic-de-saint-sernin-x-skims-refined-knit-deep-v-bodysuit-onyx",
+        "ludovic-de-saint-sernin-x-skims-skims-body-dress-onyx",
+        "ludovic-de-saint-sernin-x-skims-waxed-cotton-bandeau-cocoa",
+        "ludovic-de-saint-sernin-x-skims-cotton-fleece-hoodie-onyx",
+        "ludovic-de-saint-sernin-x-skims-milky-sheer-mock-neck-long-sleeve-top-onyx",
+        "ludovic-de-saint-sernin-x-skims-milky-sheer-mock-neck-long-sleeve-top-sienna",
+        "ludovic-de-saint-sernin-x-skims-milky-sheer-tank-onyx",
+        "ludovic-de-saint-sernin-x-skims-skims-body-bralette-onyx",
+        "ludovic-de-saint-sernin-x-skims-cotton-fleece-slim-pant-onyx",
+        "ludovic-de-saint-sernin-x-skims-skims-body-capri-onyx",
+        "ludovic-de-saint-sernin-x-skims-waxed-cotton-micro-short-onyx",
+        "ludovic-de-saint-sernin-x-skims-skims-body-capri-clay"
+      ]
     }
   }
 }

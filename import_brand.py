@@ -134,19 +134,53 @@ def main_content(page):
     return page[idx:] if idx > 0 else page
 
 
-def list_handles(collection_url, max_pages, sleep=1.0):
-    handles, url, pages = [], collection_url, 0
+def list_handles(collection_url, max_pages, sleep=1.0, prefix=None):
+    """Devolve (endereços achados nos links da página, endereços achados nos dados embutidos pelo prefixo)."""
+    anchors, scanned, url, pages = [], [], collection_url, 0
     while url and pages < max_pages:
         page = get(url).text
         body = main_content(page)
         for h in HANDLE_RE.findall(body):
-            if h not in handles:
-                handles.append(h)
+            if h not in anchors:
+                anchors.append(h)
+        if prefix:
+            for m in re.finditer(r"(?<![a-z0-9\-])(" + re.escape(prefix) + r"[a-z0-9][a-z0-9\-]*)", page):
+                h = m.group(1).rstrip("-")
+                if h not in scanned:
+                    scanned.append(h)
         m = NEXT_RE.search(body)
         url = urljoin(url, html.unescape(m.group(1))) if m else None
         pages += 1
         time.sleep(sleep)
-    return handles
+    return anchors, scanned
+
+
+def collect_handles(bcfg):
+    """Junta as peças de várias fontes: coleção principal, sub-coleções, dados embutidos e lista fixa da configuração."""
+    ignore = re.compile(bcfg["ignore_handles_regex"]) if bcfg.get("ignore_handles_regex") else None
+    out, fontes = [], {}
+
+    def add(nome, hs):
+        n = 0
+        for h in hs:
+            if ignore and ignore.search(h):
+                continue
+            if h not in out:
+                out.append(h)
+                n += 1
+        fontes[nome] = fontes.get(nome, 0) + n
+
+    prefix = bcfg.get("handle_prefix")
+    for i, u in enumerate([bcfg["collection_url"]] + list(bcfg.get("extra_collection_urls", []))):
+        try:
+            anchors, scanned = list_handles(u, bcfg["max_pages"], prefix=prefix)
+        except Exception as e:  # noqa
+            print(f"  ! não consegui ler {u}: {str(e)[:120]}")
+            continue
+        add("links da coleção" if i == 0 else "sub-coleções", anchors)
+        add("dados embutidos na página", scanned)
+    add("lista fixa da configuração", bcfg.get("seed_handles", []))
+    return out, fontes
 
 
 def parse_ld(page):
@@ -1053,8 +1087,8 @@ def main():
     if args.handles:
         handles = [h.strip() for h in args.handles.split(",") if h.strip()]
     else:
-        handles = list_handles(bcfg["collection_url"], bcfg["max_pages"])
-        print(f"{len(handles)} produtos encontrados na aba.")
+        handles, fontes = collect_handles(bcfg)
+        print(f"{len(handles)} produtos encontrados na aba. (fontes: {fontes})")
     if args.limit:
         handles = handles[: args.limit]
 
