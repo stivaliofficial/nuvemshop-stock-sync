@@ -762,6 +762,14 @@ def process(handle, bcfg, translations, expected_style=None):
         return out
 
     ld = parse_ld(page)
+    skip = bcfg.get("skip_title_regex")
+    if skip:
+        palpite = _txt((ld or {}).get("name")) or (re.search(r"<title>(.*?)</title>", page, re.S) or [None, ""])[1]
+        if re.search(skip, html.unescape(palpite), re.I):
+            out["descartar"] = True
+            out["name"] = html.unescape(palpite).strip()[:120]
+            out["issues"].append("fora do escopo (a configuração desta categoria exclui este tipo de peça)")
+            return out
     eur, cur = extract_price(ld, page)
     out["eur"], out["currency"] = eur, cur
     if eur is None:
@@ -813,6 +821,11 @@ def process(handle, bcfg, translations, expected_style=None):
         out["warnings"].append("cor não identificada no título")
     out["name"] = f"{name_caps} {color}".strip()
     out["color"] = color
+    skip = bcfg.get("skip_title_regex")
+    if skip and re.search(skip, name, re.I):
+        out["descartar"] = True
+        out["issues"].append("fora do escopo (a configuração desta categoria exclui este tipo de peça)")
+        return out
 
     variants, issues, bra_info, size_pairs = build_variants(js, bcfg["defaults"])
     out["issues"] += issues
@@ -999,7 +1012,7 @@ def run_queue(handles, bcfg, translations, cores_on, max_total):
         results.append(p)
         blocked_in_row = blocked_in_row + 1 if p.get("blocked") else 0
         if p.get("descartar"):
-            print(f"- [IGNORADA] {h}: não é a mesma peça")
+            print(f"- [IGNORADA] {h}: {(p['issues'] or ['fora do escopo'])[0]}")
             time.sleep(0.5)
             continue
         status = "OK" if not p["issues"] else "PENDÊNCIA"
