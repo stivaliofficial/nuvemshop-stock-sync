@@ -1073,10 +1073,21 @@ def main():
     cfg = json.load(open("brand_config.json", encoding="utf-8"))
     bcfg = cfg["brands"][args.brand]
     brand = bcfg["display_name"]
+    tpath = f"translations_{args.brand}.json"
     try:
-        translations = json.load(open(f"translations_{args.brand}.json", encoding="utf-8"))
+        translations = json.load(open(tpath, encoding="utf-8-sig"))
+        por_peca = sum(1 for k in translations if k.startswith("estilo:"))
+        print(f"Textos em português: {len(translations)} entradas em {tpath} ({por_peca} por peça).")
     except FileNotFoundError:
+        import glob
         translations = {}
+        print(f"ATENÇÃO: o arquivo de textos '{tpath}' NÃO foi encontrado no repositório.")
+        print(f"         Arquivos de textos que existem aqui: {sorted(glob.glob('translations*.json')) or 'nenhum'}")
+    except ValueError as e:
+        sys.exit(f"O arquivo {tpath} existe, mas não é um JSON válido ({e}). Suba de novo o arquivo original.")
+    if args.live and not translations:
+        sys.exit(f"Modo LIVE sem textos em português ({tpath} ausente ou vazio): nada seria criado. "
+                 f"Suba o arquivo com esse nome exato e rode de novo.")
 
     token = os.environ.get("NUVEMSHOP_ACCESS_TOKEN", "")
     ns = Nuvemshop(cfg["nuvemshop"]["store_id"], token, cfg["nuvemshop"]["contact"]) if token else None

@@ -102,10 +102,38 @@
           ]
         },
         {
-          "title_regex": "\\bpants?\\b",
+          "title_regex": "\\b(pants?|capri)\\b",
           "path": [
             "ROUPAS",
             "CALÇAS"
+          ]
+        },
+        {
+          "title_regex": "\\bskirt\\b",
+          "path": [
+            "ROUPAS",
+            "SAIAS"
+          ]
+        },
+        {
+          "title_regex": "\\bshort\\b",
+          "path": [
+            "ROUPAS",
+            "SHORTS"
+          ]
+        },
+        {
+          "title_regex": "\\b(bandeau|top)\\b",
+          "path": [
+            "ROUPAS",
+            "TOPS"
+          ]
+        },
+        {
+          "title_regex": "\\bchoker\\b",
+          "path": [
+            "ACESSÓRIOS",
+            "COLARES"
           ]
         }
       ],
