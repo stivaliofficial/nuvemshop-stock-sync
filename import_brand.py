@@ -89,14 +89,27 @@ def convert_bra(band, cup):
 
 
 # ---------------------------------------------------------------- preço
-def final_price(eur, pricing):
-    """EUR x multiplicador + valor fixo (sem centavos). O valor fixo pode mudar por faixa de preço:
-    pricing['tiers'] = [{'max_eur': 30, 'fixed_brl': 1450}] vale para peças até €30."""
+def regra_do_modelo(pricing, handle):
+    """Regra própria de um modelo (ex.: collab): casa pelo endereço do produto e troca o valor somado depois
+    do euro x multiplicador. Devolve a regra ou None."""
+    for o in pricing.get("overrides", []):
+        if re.search(o["handle_regex"], handle or "", re.I):
+            return o
+    return None
+
+
+def final_price(eur, pricing, handle=""):
+    """EUR x multiplicador + valor somado (sem centavos). O valor somado pode mudar por faixa de preço
+    (pricing['tiers']) ou por modelo (pricing['overrides'], com 'fixed_brl' próprio)."""
     fixed = pricing["fixed_brl"]
-    for t in sorted(pricing.get("tiers", []), key=lambda t: t["max_eur"]):
-        if eur <= t["max_eur"]:
-            fixed = t["fixed_brl"]
-            break
+    o = regra_do_modelo(pricing, handle)
+    if o:
+        fixed = o["fixed_brl"]
+    else:
+        for t in sorted(pricing.get("tiers", []), key=lambda t: t["max_eur"]):
+            if eur <= t["max_eur"]:
+                fixed = t["fixed_brl"]
+                break
     return int(math.floor(eur * pricing["multiplier"] + fixed))
 
 
@@ -722,7 +735,13 @@ def process(handle, bcfg, translations, expected_style=None):
     elif cur and cur != bcfg["currency"]:
         out["issues"].append(f"preço veio em {cur}, não em {bcfg['currency']}")
     else:
-        out["final_brl"] = final_price(eur, bcfg["pricing"])
+        out["final_brl"] = final_price(eur, bcfg["pricing"], handle)
+        regra = regra_do_modelo(bcfg["pricing"], handle)
+        if regra:
+            out["regra_modelo"] = regra["fixed_brl"]
+            esp = regra.get("eur_esperado")
+            if esp and abs(eur - esp) > 0.5:
+                out["warnings"].append(f"regra do modelo (+R$ {regra['fixed_brl']}) aplicada; o site mostra €{eur:g} (citado: €{esp:g})")
 
     attempts = []
     js = get_product_js(base, handle, attempts)
@@ -753,7 +772,7 @@ def process(handle, bcfg, translations, expected_style=None):
     else:
         name, color = title.strip(), ""
     name_caps = name.upper()
-    if not name_caps.startswith(bcfg["display_name"].upper()):
+    if bcfg["display_name"].upper() not in name_caps:
         name_caps = f"{bcfg['display_name'].upper()} {name_caps}"
     color = color.upper()
     if not color:
@@ -951,7 +970,7 @@ def run_queue(handles, bcfg, translations, cores_on, max_total):
             continue
         status = "OK" if not p["issues"] else "PENDÊNCIA"
         tag = " (outra cor)" if origem[h] != "aba" else ""
-        print(f"- [{status}]{tag} {p.get('name', h)} | EUR {p.get('eur')} -> R$ {p.get('final_brl')} | "
+        print(f"- [{status}]{tag} {p.get('name', h)} | EUR {p.get('eur')} -> R$ {p.get('final_brl')}{(' (soma R$ %s)' % p['regra_modelo']) if p.get('regra_modelo') else ''} | "
               f"{len(p.get('variants', []))} tamanhos | {len(p.get('images', []))} fotos")
         for it in p["issues"]:
             print(f"    ! {it}")

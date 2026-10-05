@@ -58,6 +58,67 @@
       "max_images": 0,
       "include_other_colors": true,
       "max_total": 400
+    },
+    "skims_ldss": {
+      "display_name": "SKIMS",
+      "base_url": "https://skims.com/en-es",
+      "collection_url": "https://skims.com/en-es/collections/ludovic-de-saint-sernin-x-skims",
+      "max_pages": 8,
+      "currency": "EUR",
+      "pricing": {
+        "multiplier": 6.5,
+        "fixed_brl": 2500,
+        "overrides": [
+          {
+            "handle_regex": "skims-body-dress",
+            "fixed_brl": 3100,
+            "eur_esperado": 376
+          },
+          {
+            "handle_regex": "waxed-cotton-mini-dress",
+            "fixed_brl": 3500,
+            "eur_esperado": 628
+          }
+        ]
+      },
+      "category_path": [
+        "MARCAS",
+        "SKIMS",
+        "LUDOVIC DE SAINT SERNIN X SKIMS"
+      ],
+      "general_categories": [
+        {
+          "title_regex": "\\b(t-shirt|tee|tank)\\b(?!\\s+bra)",
+          "path": [
+            "ROUPAS",
+            "CAMISETAS & REGATAS"
+          ]
+        },
+        {
+          "title_regex": "\\bdress\\b",
+          "path": [
+            "ROUPAS",
+            "VESTIDOS"
+          ]
+        },
+        {
+          "title_regex": "\\bpants?\\b",
+          "path": [
+            "ROUPAS",
+            "CALÇAS"
+          ]
+        }
+      ],
+      "defaults": {
+        "weight_kg": "0.25",
+        "width_cm": "25",
+        "height_cm": "6",
+        "depth_cm": "18",
+        "stock": 3
+      },
+      "max_images": 0,
+      "include_other_colors": true,
+      "max_total": 400
     }
   }
 }
