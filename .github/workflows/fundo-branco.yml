@@ -1,0 +1,50 @@
+name: Padronizar fundo branco das fotos
+
+on:
+  workflow_dispatch:
+    inputs:
+      modo_teste:
+        description: "Modo teste (não altera a loja). Use true primeiro!"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      marca:
+        description: "Marca (ex: Martens). Vazio = todas"
+        required: false
+        default: ""
+      limite_produtos:
+        description: "Máximo de produtos (0 = todos)"
+        required: false
+        default: "0"
+      dias_recentes:
+        description: "Só produtos criados nos últimos N dias (0 = todos)"
+        required: false
+        default: "0"
+
+jobs:
+  fundo-branco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pillow numpy scipy requests
+      - name: Rodar padronizador
+        env:
+          NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
+          NUVEMSHOP_STORE_ID: "3277373"
+          DRY_RUN: ${{ github.event.inputs.modo_teste }}
+          MARCA: ${{ github.event.inputs.marca }}
+          LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
+          DIAS_RECENTES: ${{ github.event.inputs.dias_recentes }}
+          PRAZO_MINUTOS: "330"
+        run: python padronizar_fundo_branco.py
+      - name: Salvar relatório, comparações e backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fundo-branco-${{ github.run_number }}
+          path: output/
+          retention-days: 30
