@@ -819,6 +819,7 @@ def process(handle, bcfg, translations, expected_style=None):
         name, color = [p.strip() for p in title.rsplit("|", 1)]
     else:
         name, color = title.strip(), ""
+    name = re.sub(r'(\d)\s*"', r"\1 POL", name)      # 26" -> 26 POL (evita &quot; no título)
     name_caps = name.upper()
     if bcfg["display_name"].upper() not in name_caps:
         name_caps = f"{bcfg['display_name'].upper()} {name_caps}"
