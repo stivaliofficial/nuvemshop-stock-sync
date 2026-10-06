@@ -941,12 +941,16 @@ class Nuvemshop:
         return r.json()
 
 
-def cat_name(c):
+def cat_names(c):
+    """Todos os nomes da categoria (qualquer idioma), em maiúsculas — a loja às vezes preenche só o inglês."""
     n = c.get("name", {})
-    for v in n.values():
-        if v:
-            return str(v).strip().upper()
-    return ""
+    vals = n.values() if isinstance(n, dict) else [n]
+    return {str(v).strip().upper() for v in vals if v and str(v).strip()}
+
+
+def cat_name(c):
+    nn = sorted(cat_names(c))
+    return nn[0] if nn else ""
 
 
 def resolve_category(path, cats):
@@ -954,9 +958,10 @@ def resolve_category(path, cats):
     found = None
     for step in path:
         found = None
+        step_u = step.strip().upper()
         for c in cats:
             p = c.get("parent") or None
-            if cat_name(c) == step.upper() and p == parent:
+            if step_u in cat_names(c) and p == parent:
                 found = c
                 break
         if not found:
