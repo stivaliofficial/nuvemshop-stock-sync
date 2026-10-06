@@ -16,6 +16,10 @@ on:
         description: "Máximo de produtos (0 = todos)"
         required: false
         default: "0"
+      fotos_por_produto:
+        description: "1 = só a capa, 2 = capa + 2ª foto, 0 = todas"
+        required: false
+        default: "1"
       dias_recentes:
         description: "Só produtos criados nos últimos N dias (0 = todos)"
         required: false
@@ -38,6 +42,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.modo_teste }}
           MARCA: ${{ github.event.inputs.marca }}
           LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
+          FOTOS_POR_PRODUTO: ${{ github.event.inputs.fotos_por_produto }}
           DIAS_RECENTES: ${{ github.event.inputs.dias_recentes }}
           PRAZO_MINUTOS: "330"
         run: python padronizar_fundo_branco.py
