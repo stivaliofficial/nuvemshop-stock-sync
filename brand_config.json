@@ -218,6 +218,49 @@
       "seed_handles": [],
       "skip_title_regex": "footwear|\\brift\\b|sneaker|\\bshoes?\\b",
       "merge_by_name_price": true
+    },
+    "skims_shape": {
+      "display_name": "SKIMS",
+      "base_url": "https://skims.com/en-es",
+      "collection_url": "https://skims.com/en-es/collections/shapewear",
+      "max_pages": 10,
+      "currency": "EUR",
+      "pricing": {
+        "multiplier": 6.5,
+        "fixed_brl": 2197
+      },
+      "category_path": [
+        "MARCAS",
+        "SKIMS",
+        "MODELADORES"
+      ],
+      "general_categories": [],
+      "defaults": {
+        "weight_kg": "0.25",
+        "width_cm": "25",
+        "height_cm": "6",
+        "depth_cm": "18",
+        "stock": 3
+      },
+      "max_images": 0,
+      "include_other_colors": true,
+      "max_total": 500,
+      "extra_collection_urls": [
+        "https://skims.com/en-es/collections/shapewear-bodysuits",
+        "https://skims.com/en-es/collections/sheer-sculpt",
+        "https://skims.com/en-es/collections/skims-body",
+        "https://skims.com/en-es/collections/seamless-sculpt",
+        "https://skims.com/en-es/collections/shapewear-shorts",
+        "https://skims.com/en-es/collections/sheer-seamless",
+        "https://skims.com/en-es/collections/power-mesh-shapewear",
+        "https://skims.com/en-es/collections/waist-trainers",
+        "https://skims.com/en-es/collections/shapewear-thongs",
+        "https://skims.com/en-es/collections/shapewear-briefs",
+        "https://skims.com/en-es/collections/bodysuits"
+      ],
+      "handle_prefix": null,
+      "merge_by_name_price": true,
+      "seed_handles": []
     }
   }
 }
