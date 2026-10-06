@@ -370,13 +370,19 @@ def fabric_groups(page, limit=8):
     return groups
 
 
+NIKE_HEAD_RE = re.compile(r"^[A-Z]{2}[0-9]{4}$")          # IR5035, IW7673 — começo de SKU no padrão Nike
+
+
 def style_key(skus):
-    """'BD-THG-9551W-ONX-XXS' -> 'BD-THG-9551W' (a peça, sem a cor e sem o tamanho)."""
+    """Código do MODELO (sem cor nem tamanho), para juntar as cores num anúncio só.
+    SKMS: 'BD-THG-9551W-ONX-XXS' -> 'BD-THG-9551W'. Nike: 'IR5035-263-S' ou 'IR5035-263' -> 'IR5035'."""
     for sku in skus:
         if not sku:
             continue
-        toks = [t for t in sku.upper().split("-") if t]
-        for i, t in enumerate(toks):
+        toks = [t for t in sku.upper().strip().split("-") if t]
+        if toks and NIKE_HEAD_RE.match(toks[0]):
+            return toks[0]                                  # Nike: o modelo é o primeiro bloco; o resto é cor/tamanho
+        for i, t in enumerate(toks):                        # SKMS: vai até o bloco que termina em número
             if NUM_TOKEN_RE.match(t):
                 return "-".join(toks[: i + 1])
     return ""
