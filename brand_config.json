@@ -186,29 +186,7 @@
         "SKIMS",
         "NIKE X SKIMS"
       ],
-      "general_categories": [
-        {
-          "title_regex": "\\b(t-shirt|tee|tank)\\b(?!\\s+bra)",
-          "path": [
-            "ROUPAS",
-            "CAMISETAS & REGATAS"
-          ]
-        },
-        {
-          "title_regex": "\\bdress\\b",
-          "path": [
-            "ROUPAS",
-            "VESTIDOS"
-          ]
-        },
-        {
-          "title_regex": "\\bpants?\\b",
-          "path": [
-            "ROUPAS",
-            "CALÇAS"
-          ]
-        }
-      ],
+      "general_categories": [],
       "defaults": {
         "weight_kg": "0.25",
         "width_cm": "25",
