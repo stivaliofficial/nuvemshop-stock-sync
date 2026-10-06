@@ -1053,6 +1053,31 @@ def run_queue(handles, bcfg, translations, cores_on, max_total):
     return results
 
 
+def nome_base(p):
+    """Nome do produto sem a cor no fim (ex.: 'MATTE 26\" LEGGING OBSIDIAN' -> 'MATTE 26\" LEGGING')."""
+    nome, cor = (p.get("name") or "").strip(), (p.get("color") or "").strip()
+    return nome[: -len(cor)].strip() if cor and nome.upper().endswith(cor.upper()) else nome
+
+
+def agrupar_por_nome_preco(results, ativo):
+    """Quando o mesmo modelo vem com SKUs diferentes, junta num style_key só os que têm NOME e PREÇO iguais.
+    Preço diferente (ex.: estampa especial) fica separado. Só mexe em quem ainda não foi descartado."""
+    if not ativo:
+        return
+    from collections import defaultdict
+    grupos = defaultdict(list)
+    for p in results:
+        if p.get("descartar") or not p.get("style_key") or p.get("eur") is None or not p.get("name"):
+            continue
+        grupos[(nome_base(p).upper(), round(float(p["eur"]), 2))].append(p)
+    for (nome, _eur), ps in grupos.items():
+        canon = sorted({p["style_key"] for p in ps})[0]       # um código representa o grupo (estável)
+        for p in ps:
+            if p["style_key"] != canon:
+                p["style_key_original"] = p["style_key"]
+                p["style_key"] = canon
+
+
 def analisar_pecas(results):
     """Marca cores com preço diferente das outras da mesma peça (provável promoção) e agrupa por peça."""
     from collections import Counter, defaultdict
@@ -1138,6 +1163,7 @@ def main():
 
     cores_on = bcfg.get("include_other_colors", True) and not args.sem_cores and not args.handles
     results = run_queue(handles, bcfg, translations, cores_on, bcfg.get("max_total", 400))
+    agrupar_por_nome_preco(results, bcfg.get("merge_by_name_price", False))
     grupos = analisar_pecas(results)
     for p in results:
         if p.get("preco_diferente"):

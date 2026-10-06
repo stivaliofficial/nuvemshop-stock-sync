@@ -238,7 +238,8 @@
       "handle_prefix": "nikeskims-",
       "ignore_handles_regex": "^nikeskims-(matte|shine|airy|pants|weightless|stretch-nylon|stretch-knit|satin-shine|performance-cotton-blend|vintage-seamless|matte-tricot|woven-nylon|ribbed-seamless|studio-stretch|tops|bras|leggings|shorts|jackets|accessories|bottoms|dresses|all)$|footwear|rift|sneaker|shoe",
       "seed_handles": [],
-      "skip_title_regex": "footwear|\\brift\\b|sneaker|\\bshoes?\\b"
+      "skip_title_regex": "footwear|\\brift\\b|sneaker|\\bshoes?\\b",
+      "merge_by_name_price": true
     }
   }
 }
