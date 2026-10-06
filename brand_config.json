@@ -57,7 +57,8 @@
       },
       "max_images": 0,
       "include_other_colors": true,
-      "max_total": 400
+      "max_total": 400,
+      "images_by_code": true
     },
     "skims_ldss": {
       "display_name": "SKIMS",

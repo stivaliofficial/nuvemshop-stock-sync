@@ -854,15 +854,18 @@ def process(handle, bcfg, translations, expected_style=None):
             continue
         seen_img.add(key)
         imgs.append(u)
-    known = [u for u in imgs]
-    extra = images_by_code(page, [v.get("sku") for v in js.get("variants", [])], known)
     n_before = len(imgs)
-    for u in extra:
-        u = norm_url(u)
-        key = u.split("?")[0].rsplit("/", 1)[-1].lower()
-        if key not in seen_img and not is_thumb(u):
-            seen_img.add(key)
-            imgs.append(u)
+    # Buscar fotos extras pelo código do produto SÓ quando a marca permitir (ex.: SKIMS Mais Vendidos,
+    # cujos códigos são únicos). Em coleções Nike os códigos se repetem entre peças e embaralham as fotos,
+    # então aqui ficamos apenas com as fotos da ficha oficial do próprio produto.
+    if bcfg.get("images_by_code", False):
+        extra = images_by_code(page, [v.get("sku") for v in js.get("variants", [])], [u for u in imgs])
+        for u in extra:
+            u = norm_url(u)
+            key = u.split("?")[0].rsplit("/", 1)[-1].lower()
+            if key not in seen_img and not is_thumb(u):
+                seen_img.add(key)
+                imgs.append(u)
     cap = bcfg.get("max_images", 0)
     out["images"] = imgs[:cap] if cap else imgs
     out["image_sources"] = {"variacoes_js": len(js.get("images", [])), "json_ld": len([u for u in ld_urls if u]),
@@ -933,6 +936,26 @@ class Nuvemshop:
             if any(str(v).strip().upper() == name.strip().upper() for v in n.values()):
                 return True
         return False
+
+    def list_all(self, fields="id,name"):
+        out, page = [], 1
+        while True:
+            r = self._req("GET", "/products", params={"per_page": 200, "page": page, "fields": fields}, timeout=60)
+            if r.status_code == 404:
+                break
+            r.raise_for_status()
+            data = r.json()
+            out += data
+            if len(data) < 200:
+                break
+            page += 1
+        return out
+
+    def delete(self, pid):
+        r = self._req("DELETE", f"/products/{pid}", timeout=60)
+        if r.status_code not in (200, 204, 404):
+            raise RuntimeError(f"{r.status_code}: {r.text[:300]}")
+        return True
 
     def create(self, payload):
         r = self._req("POST", "/products", json=payload, timeout=300)
@@ -1118,6 +1141,8 @@ def main():
     ap.add_argument("--handles", default="")
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--sem-cores", action="store_true", help="não procurar outras cores das peças")
+    ap.add_argument("--apagar-por-nome", default="", help="apaga produtos cujo nome COMEÇA com este texto (ex: NIKESKIMS)")
+    ap.add_argument("--confirmo-apagar", action="store_true", help="confirmação obrigatória para apagar de verdade")
     args = ap.parse_args()
 
     cfg = json.load(open("brand_config.json", encoding="utf-8"))
@@ -1143,6 +1168,37 @@ def main():
     ns = Nuvemshop(cfg["nuvemshop"]["store_id"], token, cfg["nuvemshop"]["contact"]) if token else None
     if args.live and not ns:
         sys.exit("Modo --live precisa do NUVEMSHOP_ACCESS_TOKEN.")
+
+    if args.apagar_por_nome:
+        prefixo = args.apagar_por_nome.strip().upper()
+        if len(prefixo) < 4:
+            sys.exit("Por segurança, o texto de --apagar-por-nome precisa ter ao menos 4 letras.")
+        if not ns:
+            sys.exit("Apagar exige o token (NUVEMSHOP_ACCESS_TOKEN).")
+        todos = ns.list_all()
+        def nome_de(p):
+            n = p.get("name", {})
+            return (list(n.values())[0] if isinstance(n, dict) and n else (n if isinstance(n, str) else "")).strip()
+        alvos = [p for p in todos if nome_de(p).upper().startswith(prefixo)]
+        print(f"== APAGAR | {len(alvos)} produto(s) cujo nome começa com {prefixo!r} (de {len(todos)} no total) ==")
+        for p in alvos[:12]:
+            print(f"  - {nome_de(p)} (id {p.get('id')})")
+        if len(alvos) > 12:
+            print(f"  ... e mais {len(alvos) - 12}")
+        if not args.confirmo_apagar:
+            print("\nMODO SEGURO: nada foi apagado. Para apagar de verdade, rode com --confirmo-apagar.")
+            return
+        feitos = 0
+        for p in alvos:
+            try:
+                ns.delete(p["id"])
+                feitos += 1
+                print(f"  x apagado [{feitos}/{len(alvos)}]: {nome_de(p)}")
+                time.sleep(0.5)
+            except Exception as e:  # noqa
+                print(f"  ! falhou ao apagar {nome_de(p)}: {e}")
+        print(f"\nResumo: {feitos} apagado(s) de {len(alvos)}.")
+        return
 
     print(f"== {brand} | modo: {'LIVE (cria na loja)' if args.live else 'TESTE (não cria nada)'} ==")
     if args.handles:
