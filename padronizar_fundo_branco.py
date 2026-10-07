@@ -29,7 +29,7 @@ Variáveis de ambiente:
   DIAS_RECENTES           só produtos criados nos últimos N dias (0 = todos)
   AMOSTRAS_COMPARACAO     quantas comparações antes/depois salvar (padrão 80)
   PRAZO_MINUTOS           para com segurança depois de N minutos (padrão 330)
-  ACAO                    branquear (padrão) | reordenar
+  ACAO                    branquear (padrão) | reordenar | reparar
                           reordenar: nas primeiras POSICOES_VITRINE fotos (capa + hover),
                           se a foto não for de fundo branco (ex: foto de modelo), troca de
                           lugar com a próxima foto branca do produto. Não edita nem apaga nada.
@@ -133,10 +133,18 @@ def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
     #    como barreira, então mesmo produto cinza-claro não é confundido com o fundo.
     dist = np.abs(a - f).max(axis=2)
     croma = a.max(axis=2) - a.min(axis=2)
-    lum_s = ndimage.gaussian_filter(a.mean(axis=2), sigma=1.0)
+    croma_fundo = float(np.max(f) - np.min(f)) if np.ndim(f) == 1 else 0.0
+    lum = a.mean(axis=2)
+    lum_fundo = float(np.mean(f))
+    # Proteções para produtos claros (creme, off-white, branco):
+    #  - fundo de estúdio é NEUTRO: pixel com cor (creme/bege) não é fundo
+    #  - fundo pode ter degradê de luz, mas muito mais claro que ele é produto
+    lum_s = ndimage.gaussian_filter(lum, sigma=1.0)
     grad = np.hypot(ndimage.sobel(lum_s, axis=0), ndimage.sobel(lum_s, axis=1)) / 8.0
-    candidato = (dist <= TOL_REGIAO) & (croma <= CROMA_MAX + 6) & (
-        (grad <= GRADIENTE_MAX) | (dist <= TOL_FUNDO))
+    candidato = ((dist <= TOL_REGIAO)
+                 & (croma <= croma_fundo + 5)
+                 & (lum <= lum_fundo + 22)
+                 & ((grad <= GRADIENTE_MAX) | (dist <= TOL_FUNDO)))
 
     # 2) Só vale o que está ligado à borda da foto (flood fill) -> não pega o produto
     rotulos, _ = ndimage.label(candidato)
@@ -256,6 +264,11 @@ class Nuvemshop:
             yield from lote
             pagina += 1
 
+    def produto(self, pid):
+        r = self._req("GET", f"/products/{pid}", params={"fields": "id,name,images,variants"})
+        r.raise_for_status()
+        return r.json()
+
     def subir_imagem(self, pid, conteudo: bytes, posicao: int, alt=None, nome="foto.jpg"):
         corpo = {"attachment": base64.b64encode(conteudo).decode(),
                  "filename": nome, "position": posicao}
@@ -369,6 +382,56 @@ def reordenar_produto(api, download, p, w, cont, marca):
     w.writerow([pid, nome, marca, "", "", "vitrine_nao_branca", "REORDENADO", "", "", "", desc])
 
 
+def reparar(api, w, cont):
+    """Refaz, a partir da foto ORIGINAL guardada no backup, as fotos que o branqueamento
+    antigo danificou (produtos creme/claros com manchas). Lê reparar.csv."""
+    linhas = list(csv.DictReader(open("reparar.csv", encoding="utf-8")))
+    print(f"   {len(linhas)} fotos para reparar")
+    prazo = time.time() + PRAZO_MINUTOS * 60
+    for ln in linhas:
+        if time.time() > prazo:
+            print("ATENÇÃO: parou pelo prazo. Rode de novo.")
+            break
+        pid, atual = int(ln["product_id"]), int(ln["image_id_atual"])
+        caminho = os.path.join("artefatos", ln["artefato"], "originais", ln["arquivo_original"])
+        base = [pid, "", "", atual, "", "reparo"]
+        try:
+            original = open(caminho, "rb").read()
+            classe, info, novo, im_orig, im_novo = processar_bytes(original)
+            if novo is None:          # se não der para branquear com segurança, volta a original
+                novo = original
+            if cont["comparacoes"] < AMOSTRAS_COMPARACAO and im_novo is not None:
+                salvar_comparacao(im_orig, im_novo, f"{OUT_DIR}/comparacoes/{pid}_{atual}_reparo.jpg")
+                cont["comparacoes"] += 1
+            if DRY_RUN:
+                cont["reparadas"] += 1
+                w.writerow(base + ["SERIA_REPARADA", "", "", caminho, classe])
+                continue
+            p = api.produto(pid)
+            imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
+            alvo = next((i for i in imagens if i["id"] == atual), None)
+            if alvo is None:
+                w.writerow(base + ["nao_encontrada", "", "", caminho, "foto atual não existe mais"])
+                continue
+            pos = alvo.get("position") or 1
+            nova = api.subir_imagem(pid, novo, pos, alt=alvo.get("alt"), nome=f"stivali-{pid}-{pos}.jpg")
+            for v in p.get("variants") or []:
+                if v.get("image_id") == atual:
+                    api.trocar_imagem_variante(pid, v["id"], nova["id"])
+            api.apagar_imagem(pid, atual)
+            alvo["id"] = nova["id"]
+            for img in imagens:
+                try:
+                    api.posicionar_imagem(pid, img["id"], img.get("position") or 1)
+                except Exception:
+                    pass
+            cont["reparadas"] += 1
+            w.writerow(base + ["REPARADA", "", "", caminho, f"nova_image_id={nova['id']}"])
+        except Exception as e:
+            cont["erros"] += 1
+            w.writerow(base + ["ERRO", "", "", caminho, str(e)[:200]])
+
+
 def main():
     if not TOKEN:
         sys.exit("ERRO: defina NUVEMSHOP_ACCESS_TOKEN")
@@ -396,9 +459,15 @@ def main():
                 "acao", "fundo_rgb", "uniformidade", "src_original", "obs"])
 
     cont = {"produtos": 0, "imagens": 0, "ja_branco": 0, "corrigidas": 0,
-            "reordenados": 0, "ja_ok": 0,
+            "reordenados": 0, "ja_ok": 0, "reparadas": 0,
             "nao_padrao": 0, "erros": 0, "comparacoes": 0}
     parou_por_prazo = False
+
+    if ACAO == "reparar":
+        reparar(api, w, cont)
+        relatorio.close()
+        print(f"\n== RESUMO ==\nFotos {'que seriam reparadas' if DRY_RUN else 'reparadas'}: {cont['reparadas']}\nErros: {cont['erros']}")
+        return
 
     for p in api.produtos(criados_desde):  # erros de rede já têm novas tentativas em _req
         if time.time() > prazo:
