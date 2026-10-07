@@ -29,6 +29,7 @@ Variáveis de ambiente:
   DIAS_RECENTES           só produtos criados nos últimos N dias (0 = todos)
   AMOSTRAS_COMPARACAO     quantas comparações antes/depois salvar (padrão 80)
   PRAZO_MINUTOS           para com segurança depois de N minutos (padrão 330)
+  FOTOS_POR_PRODUTO       1 = só a capa, 2 = capa + 2ª foto, 0 = todas (padrão 0)
 """
 
 import base64
@@ -55,6 +56,7 @@ LIMITE_PRODUTOS = int(os.environ.get("LIMITE_PRODUTOS", "0") or 0)
 DIAS_RECENTES = int(os.environ.get("DIAS_RECENTES", "0") or 0)
 AMOSTRAS_COMPARACAO = int(os.environ.get("AMOSTRAS_COMPARACAO", "80") or 80)
 PRAZO_MINUTOS = int(os.environ.get("PRAZO_MINUTOS", "330") or 330)
+FOTOS_POR_PRODUTO = int(os.environ.get("FOTOS_POR_PRODUTO", "0") or 0)
 
 API = f"https://api.nuvemshop.com.br/v1/{STORE_ID}"
 USER_AGENT = "STIVALI Fundo Branco (contato@stivaliofficial.com)"
@@ -86,33 +88,71 @@ def carregar_rgb(data: bytes) -> Image.Image:
     return img.convert("RGB")
 
 
-def pixels_da_borda(arr: np.ndarray) -> np.ndarray:
-    h, w, _ = arr.shape
+def coords_da_borda(h, w):
     b = max(2, int(min(h, w) * BORDA_PCT))
-    partes = [arr[:b, :, :], arr[-b:, :, :], arr[:, :b, :], arr[:, -b:, :]]
-    return np.concatenate([p.reshape(-1, 3) for p in partes], axis=0)
+    m = np.zeros((h, w), bool)
+    m[:b, :] = m[-b:, :] = True
+    m[:, :b] = m[:, -b:] = True
+    return m
+
+
+def pixels_da_borda(arr: np.ndarray) -> np.ndarray:
+    return arr[coords_da_borda(*arr.shape[:2])].reshape(-1, 3)
+
+
+def _base(yy, xx, h, w):
+    x = xx / max(w - 1, 1) - 0.5
+    y = yy / max(h - 1, 1) - 0.5
+    return np.stack([np.ones_like(x), x, y, x * x, y * y, x * y], axis=-1)
+
+
+def ajustar_fundo(arr: np.ndarray):
+    """Modela o fundo como uma superfície suave (aceita degradê/vinheta de luz).
+    Retorna (superficie HxWx3, mediana, uniformidade)."""
+    h, w, _ = arr.shape
+    mb = coords_da_borda(h, w)
+    yy, xx = np.nonzero(mb)
+    px = arr[mb].astype(np.float32)
+    med = np.median(px, axis=0)
+    # usa só a borda que parece fundo (ignora produto encostando na borda)
+    ok = np.abs(px - med).max(axis=1) <= 30
+    if ok.sum() < 50:
+        ok[:] = True
+    A = _base(yy[ok].astype(np.float32), xx[ok].astype(np.float32), h, w)
+    coef = np.linalg.lstsq(A, px[ok], rcond=None)[0]
+    for _ in range(2):  # refina descartando pontos fora da superfície
+        res = np.abs(A @ coef - px[ok]).max(axis=1)
+        keep = res <= 12
+        if keep.sum() < 50:
+            break
+        coef = np.linalg.lstsq(A[keep], px[ok][keep], rcond=None)[0]
+    Afull = _base(yy.astype(np.float32), xx.astype(np.float32), h, w)
+    unif = float((np.abs(Afull @ coef - px).max(axis=1) <= TOL_FUNDO).mean())
+    gy, gx = np.mgrid[0:h, 0:w].astype(np.float32)
+    sup = _base(gy, gx, h, w) @ coef
+    return np.clip(sup, 1, 255), med, unif
 
 
 def analisar(arr: np.ndarray):
-    """Retorna (classificacao, cor_do_fundo, uniformidade)."""
-    borda = pixels_da_borda(arr).astype(np.int16)
-    fundo = np.median(borda, axis=0)
-    dist = np.abs(borda - fundo).max(axis=1)
-    uniformidade = float((dist <= TOL_FUNDO).mean())
-
+    """Retorna (classificacao, superficie_do_fundo, mediana, uniformidade)."""
+    sup, fundo, uniformidade = ajustar_fundo(arr)
     if fundo.min() >= BRANCO_MIN:
-        return "ja_branco", fundo, uniformidade
+        return "ja_branco", sup, fundo, uniformidade
     croma = fundo.max() - fundo.min()
-    if fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN:
-        return "fundo_cinza", fundo, uniformidade
-    return "fundo_nao_padrao", fundo, uniformidade
+    # o fundo inteiro (inclusive cantos do degradê) precisa ser claro e neutro
+    sup_min = float(sup.min())
+    sup_croma = float((sup.max(axis=2) - sup.min(axis=2)).max())
+    if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and sup_min >= CINZA_MIN - 15
+            and sup_croma <= CROMA_MAX + 4 and uniformidade >= UNIFORMIDADE_MIN):
+        return "fundo_cinza", sup, fundo, uniformidade
+    return "fundo_nao_padrao", sup, fundo, uniformidade
 
 
-def clarear_fundo(arr: np.ndarray, fundo: np.ndarray) -> np.ndarray:
+def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
     """Deixa o fundo branco preservando produto e sombras suaves."""
     h, w, _ = arr.shape
     a = arr.astype(np.float32)
-    f = fundo.astype(np.float32)
+    f = sup.astype(np.float32)   # fundo pixel a pixel (acompanha o degradê)
 
     # 1) Candidatos a fundo: neutros, claros, próximos da cor do fundo (inclui sombras
     #    suaves) e em área LISA. O contorno do produto tem gradiente alto e funciona
@@ -163,12 +203,12 @@ def processar_bytes(data: bytes):
     """Retorna (classificacao, info, imagem_nova_em_bytes_ou_None, img_original, img_nova)."""
     img = carregar_rgb(data)
     arr = np.asarray(img)
-    classe, fundo, unif = analisar(arr)
+    classe, sup, fundo, unif = analisar(arr)
     info = {"fundo_rgb": "-".join(str(int(x)) for x in fundo), "uniformidade": round(unif, 2)}
     if classe != "fundo_cinza":
         return classe, info, None, img, None
 
-    novo = clarear_fundo(arr, fundo)
+    novo = clarear_fundo(arr, sup)
     # Verificação final: a borda tem que ter ficado branca
     borda_nova = np.median(pixels_da_borda(novo), axis=0)
     if borda_nova.min() < 250:
@@ -292,7 +332,8 @@ def main():
         criados_desde = (datetime.now(timezone.utc) - timedelta(days=DIAS_RECENTES)).isoformat()
 
     modo = "TESTE (dry run - nada é alterado)" if DRY_RUN else "REAL (alterando a loja)"
-    print(f"== Padronizador de fundo branco | modo: {modo} | marca: {MARCA or 'todas'} ==")
+    fotos = "só a capa" if FOTOS_POR_PRODUTO == 1 else (f"{FOTOS_POR_PRODUTO} primeiras" if FOTOS_POR_PRODUTO else "todas")
+    print(f"== Padronizador de fundo branco | modo: {modo} | marca: {MARCA or 'todas'} | fotos: {fotos} ==")
 
     relatorio = open(f"{OUT_DIR}/relatorio.csv", "w", newline="", encoding="utf-8")
     w = csv.writer(relatorio)
@@ -314,7 +355,8 @@ def main():
             break
         cont["produtos"] += 1
         pid, nome = p["id"], nome_produto(p)
-        imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
+        todas_imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
+        imagens = todas_imagens[:FOTOS_POR_PRODUTO] if FOTOS_POR_PRODUTO > 0 else todas_imagens
         variantes = p.get("variants") or []
         mudou = False
 
@@ -377,7 +419,7 @@ def main():
 
         # Garante que a ordem das fotos ficou exatamente como antes
         if mudou:
-            for img in imagens:
+            for img in todas_imagens:
                 try:
                     api.posicionar_imagem(pid, img["id"], img.get("position") or 1)
                 except Exception:
