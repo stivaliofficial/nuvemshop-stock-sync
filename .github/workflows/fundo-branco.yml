@@ -3,6 +3,11 @@ name: Padronizar fundo branco das fotos
 on:
   workflow_dispatch:
     inputs:
+      acao:
+        description: "branquear = deixa o fundo branco | reordenar = tira foto de modelo da capa/hover"
+        type: choice
+        options: ["branquear", "reordenar"]
+        default: "branquear"
       modo_teste:
         description: "Modo teste (não altera a loja). Use true primeiro!"
         type: choice
@@ -19,7 +24,7 @@ on:
       fotos_por_produto:
         description: "1 = só a capa, 2 = capa + 2ª foto, 0 = todas"
         required: false
-        default: "1"
+        default: "0"
       dias_recentes:
         description: "Só produtos criados nos últimos N dias (0 = todos)"
         required: false
@@ -39,6 +44,7 @@ jobs:
         env:
           NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
           NUVEMSHOP_STORE_ID: "3277373"
+          ACAO: ${{ github.event.inputs.acao }}
           DRY_RUN: ${{ github.event.inputs.modo_teste }}
           MARCA: ${{ github.event.inputs.marca }}
           LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
