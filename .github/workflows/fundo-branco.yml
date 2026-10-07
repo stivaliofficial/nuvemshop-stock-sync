@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       acao:
-        description: "branquear = deixa o fundo branco | reordenar = tira foto de modelo da capa/hover"
+        description: "branquear = fundo branco | reordenar = capa/hover brancos | reparar = refaz fotos da lista reparar.csv"
         type: choice
-        options: ["branquear", "reordenar"]
+        options: ["branquear", "reordenar", "reparar"]
         default: "branquear"
       modo_teste:
         description: "Modo teste (não altera a loja). Use true primeiro!"
@@ -34,12 +34,25 @@ jobs:
   fundo-branco:
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install pillow numpy scipy requests
+      - name: Baixar backups das fotos originais (só no reparar)
+        if: github.event.inputs.acao == 'reparar'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARTS=$(tail -n +2 reparar.csv | cut -d, -f4 | tr -d '\r' | sort -u)
+          ARGS=""
+          for a in $ARTS; do ARGS="$ARGS -n $a"; done
+          gh run download $ARGS -D artefatos
+          ls artefatos
       - name: Rodar padronizador
         env:
           NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
