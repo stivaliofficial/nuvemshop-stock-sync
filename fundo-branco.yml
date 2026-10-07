@@ -1,0 +1,61 @@
+name: Padronizar fundo branco das fotos
+
+on:
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: "branquear = deixa o fundo branco | reordenar = tira foto de modelo da capa/hover"
+        type: choice
+        options: ["branquear", "reordenar"]
+        default: "branquear"
+      modo_teste:
+        description: "Modo teste (não altera a loja). Use true primeiro!"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      marca:
+        description: "Marca (ex: Martens). Vazio = todas"
+        required: false
+        default: ""
+      limite_produtos:
+        description: "Máximo de produtos (0 = todos)"
+        required: false
+        default: "0"
+      fotos_por_produto:
+        description: "1 = só a capa, 2 = capa + 2ª foto, 0 = todas"
+        required: false
+        default: "0"
+      dias_recentes:
+        description: "Só produtos criados nos últimos N dias (0 = todos)"
+        required: false
+        default: "0"
+
+jobs:
+  fundo-branco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pillow numpy scipy requests
+      - name: Rodar padronizador
+        env:
+          NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
+          NUVEMSHOP_STORE_ID: "3277373"
+          ACAO: ${{ github.event.inputs.acao }}
+          DRY_RUN: ${{ github.event.inputs.modo_teste }}
+          MARCA: ${{ github.event.inputs.marca }}
+          LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
+          FOTOS_POR_PRODUTO: ${{ github.event.inputs.fotos_por_produto }}
+          DIAS_RECENTES: ${{ github.event.inputs.dias_recentes }}
+          PRAZO_MINUTOS: "330"
+        run: python padronizar_fundo_branco.py
+      - name: Salvar relatório, comparações e backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fundo-branco-${{ github.run_number }}
+          path: output/
+          retention-days: 30

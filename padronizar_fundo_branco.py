@@ -29,6 +29,10 @@ Variáveis de ambiente:
   DIAS_RECENTES           só produtos criados nos últimos N dias (0 = todos)
   AMOSTRAS_COMPARACAO     quantas comparações antes/depois salvar (padrão 80)
   PRAZO_MINUTOS           para com segurança depois de N minutos (padrão 330)
+  ACAO                    branquear (padrão) | reordenar
+                          reordenar: nas primeiras POSICOES_VITRINE fotos (capa + hover),
+                          se a foto não for de fundo branco (ex: foto de modelo), troca de
+                          lugar com a próxima foto branca do produto. Não edita nem apaga nada.
   FOTOS_POR_PRODUTO       1 = só a capa, 2 = capa + 2ª foto, 0 = todas (padrão 0)
 """
 
@@ -55,6 +59,8 @@ MARCA = os.environ.get("MARCA", "").strip().lower()
 LIMITE_PRODUTOS = int(os.environ.get("LIMITE_PRODUTOS", "0") or 0)
 DIAS_RECENTES = int(os.environ.get("DIAS_RECENTES", "0") or 0)
 AMOSTRAS_COMPARACAO = int(os.environ.get("AMOSTRAS_COMPARACAO", "80") or 80)
+ACAO = (os.environ.get("ACAO", "branquear") or "branquear").strip().lower()
+POSICOES_VITRINE = int(os.environ.get("POSICOES_VITRINE", "2") or 2)  # capa + hover
 PRAZO_MINUTOS = int(os.environ.get("PRAZO_MINUTOS", "330") or 330)
 FOTOS_POR_PRODUTO = int(os.environ.get("FOTOS_POR_PRODUTO", "0") or 0)
 
@@ -288,6 +294,78 @@ def marca_produto(p):
 # ----------------------------------------------------------------------------
 # Execução
 # ----------------------------------------------------------------------------
+def eh_branca(download, img, cache):
+    """True se a foto tem fundo branco. Usa cache para não baixar duas vezes."""
+    iid = img["id"]
+    if iid not in cache:
+        src = img["src"]
+        if src.startswith("//"):
+            src = "https:" + src
+        try:
+            r = download.get(src, timeout=60)
+            r.raise_for_status()
+            im = carregar_rgb(r.content)
+            cache[iid] = (analisar(np.asarray(im))[0] == "ja_branco", im)
+        except Exception:
+            cache[iid] = (None, None)  # não deu para baixar -> não mexe
+    return cache[iid][0]
+
+
+def salvar_comparacao_ordem(antes, depois, caminho):
+    alt = 260
+    def red(i):
+        i = i.copy(); i.thumbnail((alt, alt)); return i
+    aa = [red(i) for i in antes if i is not None]
+    dd = [red(i) for i in depois if i is not None]
+    w1 = sum(i.width + 10 for i in aa); w2 = sum(i.width + 10 for i in dd)
+    tela = Image.new("RGB", (w1 + w2 + 40, alt + 20), (255, 0, 140))
+    x = 10
+    for i in aa:
+        tela.paste(i, (x, 10)); x += i.width + 10
+    x += 20
+    for i in dd:
+        tela.paste(i, (x, 10)); x += i.width + 10
+    tela.save(caminho, quality=82)
+
+
+def reordenar_produto(api, download, p, w, cont, marca):
+    pid, nome = p["id"], nome_produto(p)
+    imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
+    if len(imagens) < 2:
+        return
+    posicoes = [i.get("position") or (k + 1) for k, i in enumerate(imagens)]
+    ordem = list(imagens)
+    cache = {}
+    trocas = []
+    for k in range(min(POSICOES_VITRINE, len(ordem))):
+        if eh_branca(download, ordem[k], cache) is not False:
+            continue  # já é branca (ou não deu para analisar)
+        for j in range(k + 1, len(ordem)):
+            if eh_branca(download, ordem[j], cache):
+                trocas.append((posicoes[k], posicoes[j]))
+                ordem[k], ordem[j] = ordem[j], ordem[k]
+                break
+    if not trocas:
+        cont["ja_ok"] += 1
+        return
+
+    if cont["comparacoes"] < AMOSTRAS_COMPARACAO:
+        antes = [cache.get(i["id"], (None, None))[1] for i in imagens[:POSICOES_VITRINE]]
+        depois = [cache.get(i["id"], (None, None))[1] for i in ordem[:POSICOES_VITRINE]]
+        salvar_comparacao_ordem(antes, depois, f"{OUT_DIR}/comparacoes/{pid}_ordem.jpg")
+        cont["comparacoes"] += 1
+
+    desc = "; ".join(f"foto {b} vai para posição {a}" for a, b in trocas)
+    if DRY_RUN:
+        cont["reordenados"] += 1
+        w.writerow([pid, nome, marca, "", "", "vitrine_nao_branca", "SERIA_REORDENADO", "", "", "", desc])
+        return
+    for img, pos in zip(ordem, posicoes):
+        api.posicionar_imagem(pid, img["id"], pos)
+    cont["reordenados"] += 1
+    w.writerow([pid, nome, marca, "", "", "vitrine_nao_branca", "REORDENADO", "", "", "", desc])
+
+
 def main():
     if not TOKEN:
         sys.exit("ERRO: defina NUVEMSHOP_ACCESS_TOKEN")
@@ -307,7 +385,7 @@ def main():
 
     modo = "TESTE (dry run - nada é alterado)" if DRY_RUN else "REAL (alterando a loja)"
     fotos = "só a capa" if FOTOS_POR_PRODUTO == 1 else (f"{FOTOS_POR_PRODUTO} primeiras" if FOTOS_POR_PRODUTO else "todas")
-    print(f"== Padronizador de fundo branco | modo: {modo} | marca: {MARCA or 'todas'} | fotos: {fotos} ==")
+    print(f"== Padronizador de fundo branco | ação: {ACAO} | modo: {modo} | marca: {MARCA or 'todas'} | fotos: {fotos} ==")
 
     relatorio = open(f"{OUT_DIR}/relatorio.csv", "w", newline="", encoding="utf-8")
     w = csv.writer(relatorio)
@@ -315,6 +393,7 @@ def main():
                 "acao", "fundo_rgb", "uniformidade", "src_original", "obs"])
 
     cont = {"produtos": 0, "imagens": 0, "ja_branco": 0, "corrigidas": 0,
+            "reordenados": 0, "ja_ok": 0,
             "nao_padrao": 0, "erros": 0, "comparacoes": 0}
     parou_por_prazo = False
 
@@ -328,6 +407,15 @@ def main():
         if LIMITE_PRODUTOS and cont["produtos"] >= LIMITE_PRODUTOS:
             break
         cont["produtos"] += 1
+        if ACAO == "reordenar":
+            try:
+                reordenar_produto(api, download, p, w, cont, marca)
+            except Exception as e:
+                cont["erros"] += 1
+                w.writerow([p.get("id"), nome_produto(p), marca, "", "", "erro_produto", "nenhuma",
+                            "", "", "", str(e)[:200]])
+            relatorio.flush()
+            continue
         try:
             pid, nome = p["id"], nome_produto(p)
             todas_imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
@@ -417,6 +505,9 @@ def main():
     print(f"Já estavam brancas:            {cont['ja_branco']}")
     print(f"Fundo cinza {'(seriam corrigidas)' if DRY_RUN else '(corrigidas)'}: {cont['corrigidas']}")
     print(f"Revisar manualmente:           {cont['nao_padrao']}")
+    if ACAO == "reordenar":
+        print(f"Vitrine já estava branca:      {cont['ja_ok']}")
+        print(f"Produtos {'que seriam reordenados' if DRY_RUN else 'reordenados'}: {cont['reordenados']}")
     print(f"Erros:                         {cont['erros']}")
     print(f"Tempo:                         {minutos:.1f} min")
     if parou_por_prazo:
