@@ -100,52 +100,19 @@ def pixels_da_borda(arr: np.ndarray) -> np.ndarray:
     return arr[coords_da_borda(*arr.shape[:2])].reshape(-1, 3)
 
 
-def _base(yy, xx, h, w):
-    x = xx / max(w - 1, 1) - 0.5
-    y = yy / max(h - 1, 1) - 0.5
-    return np.stack([np.ones_like(x), x, y, x * x, y * y, x * y], axis=-1)
-
-
-def ajustar_fundo(arr: np.ndarray):
-    """Modela o fundo como uma superfície suave (aceita degradê/vinheta de luz).
-    Retorna (superficie HxWx3, mediana, uniformidade)."""
-    h, w, _ = arr.shape
-    mb = coords_da_borda(h, w)
-    yy, xx = np.nonzero(mb)
-    px = arr[mb].astype(np.float32)
-    med = np.median(px, axis=0)
-    # usa só a borda que parece fundo (ignora produto encostando na borda)
-    ok = np.abs(px - med).max(axis=1) <= 30
-    if ok.sum() < 50:
-        ok[:] = True
-    A = _base(yy[ok].astype(np.float32), xx[ok].astype(np.float32), h, w)
-    coef = np.linalg.lstsq(A, px[ok], rcond=None)[0]
-    for _ in range(2):  # refina descartando pontos fora da superfície
-        res = np.abs(A @ coef - px[ok]).max(axis=1)
-        keep = res <= 12
-        if keep.sum() < 50:
-            break
-        coef = np.linalg.lstsq(A[keep], px[ok][keep], rcond=None)[0]
-    Afull = _base(yy.astype(np.float32), xx.astype(np.float32), h, w)
-    unif = float((np.abs(Afull @ coef - px).max(axis=1) <= TOL_FUNDO).mean())
-    gy, gx = np.mgrid[0:h, 0:w].astype(np.float32)
-    sup = _base(gy, gx, h, w) @ coef
-    return np.clip(sup, 1, 255), med, unif
-
-
 def analisar(arr: np.ndarray):
-    """Retorna (classificacao, superficie_do_fundo, mediana, uniformidade)."""
-    sup, fundo, uniformidade = ajustar_fundo(arr)
+    """Retorna (classificacao, fundo, mediana, uniformidade).
+    Critério validado: só fundo cinza LISO de estúdio. Fotos editoriais (parede +
+    chão), fundos coloridos ou escuros ficam de fora de propósito."""
+    borda = pixels_da_borda(arr).astype(np.int16)
+    fundo = np.median(borda, axis=0)
+    uniformidade = float((np.abs(borda - fundo).max(axis=1) <= TOL_FUNDO).mean())
     if fundo.min() >= BRANCO_MIN:
-        return "ja_branco", sup, fundo, uniformidade
+        return "ja_branco", fundo, fundo, uniformidade
     croma = fundo.max() - fundo.min()
-    # o fundo inteiro (inclusive cantos do degradê) precisa ser claro e neutro
-    sup_min = float(sup.min())
-    sup_croma = float((sup.max(axis=2) - sup.min(axis=2)).max())
-    if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and sup_min >= CINZA_MIN - 15
-            and sup_croma <= CROMA_MAX + 4 and uniformidade >= UNIFORMIDADE_MIN):
-        return "fundo_cinza", sup, fundo, uniformidade
-    return "fundo_nao_padrao", sup, fundo, uniformidade
+    if fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN:
+        return "fundo_cinza", fundo, fundo, uniformidade
+    return "fundo_nao_padrao", fundo, fundo, uniformidade
 
 
 def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
@@ -244,8 +211,13 @@ class Nuvemshop:
         })
 
     def _req(self, metodo, caminho, **kw):
-        for tentativa in range(8):
-            r = self.s.request(metodo, API + caminho, timeout=60, **kw)
+        r = None
+        for tentativa in range(10):
+            try:
+                r = self.s.request(metodo, API + caminho, timeout=90, **kw)
+            except requests.RequestException:
+                time.sleep(min(5 * (tentativa + 1), 60))
+                continue
             if r.status_code == 429 or r.status_code >= 500:
                 espera = float(r.headers.get("x-rate-limit-reset", 0) or 0) / 1000 or (2 ** tentativa)
                 time.sleep(min(max(espera, 1), 30))
@@ -255,6 +227,8 @@ class Nuvemshop:
             if rest is not None and rest.isdigit() and int(rest) < 5:
                 time.sleep(2)
             return r
+        if r is None:
+            raise RuntimeError(f"sem resposta da API: {metodo} {caminho}")
         r.raise_for_status()
         return r
 
@@ -344,7 +318,7 @@ def main():
             "nao_padrao": 0, "erros": 0, "comparacoes": 0}
     parou_por_prazo = False
 
-    for p in api.produtos(criados_desde):
+    for p in api.produtos(criados_desde):  # erros de rede já têm novas tentativas em _req
         if time.time() > prazo:
             parou_por_prazo = True
             break
@@ -354,76 +328,81 @@ def main():
         if LIMITE_PRODUTOS and cont["produtos"] >= LIMITE_PRODUTOS:
             break
         cont["produtos"] += 1
-        pid, nome = p["id"], nome_produto(p)
-        todas_imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
-        imagens = todas_imagens[:FOTOS_POR_PRODUTO] if FOTOS_POR_PRODUTO > 0 else todas_imagens
-        variantes = p.get("variants") or []
-        mudou = False
+        try:
+            pid, nome = p["id"], nome_produto(p)
+            todas_imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
+            imagens = todas_imagens[:FOTOS_POR_PRODUTO] if FOTOS_POR_PRODUTO > 0 else todas_imagens
+            variantes = p.get("variants") or []
+            mudou = False
 
-        for img in imagens:
-            cont["imagens"] += 1
-            iid, src, pos = img["id"], img["src"], img.get("position") or 1
-            if src.startswith("//"):
-                src = "https:" + src
-            base = [pid, nome, marca, iid, pos]
-            try:
-                r = download.get(src, timeout=60)
-                r.raise_for_status()
-                classe, info, novo, im_orig, im_novo = processar_bytes(r.content)
-            except Exception as e:
-                cont["erros"] += 1
-                w.writerow(base + ["erro_download", "nenhuma", "", "", src, str(e)[:200]])
-                continue
-
-            if classe == "ja_branco":
-                cont["ja_branco"] += 1
-                w.writerow(base + [classe, "nenhuma", info["fundo_rgb"], info["uniformidade"], src, ""])
-                continue
-            if classe in ("fundo_nao_padrao", "falhou_verificacao"):
-                cont["nao_padrao"] += 1
-                w.writerow(base + [classe, "revisar_manual", info["fundo_rgb"],
-                                   info["uniformidade"], src, info.get("obs", "")])
-                continue
-
-            # classe == corrigir
-            if cont["comparacoes"] < AMOSTRAS_COMPARACAO:
-                salvar_comparacao(im_orig, im_novo,
-                                  f"{OUT_DIR}/comparacoes/{pid}_{iid}.jpg")
-                cont["comparacoes"] += 1
-
-            if DRY_RUN:
-                cont["corrigidas"] += 1
-                w.writerow(base + ["fundo_cinza", "SERIA_CORRIGIDA", info["fundo_rgb"],
-                                   info["uniformidade"], src, ""])
-                continue
-
-            try:
-                with open(f"{OUT_DIR}/originais/{pid}_{iid}.jpg", "wb") as fh:
-                    fh.write(r.content)
-                nova = api.subir_imagem(pid, novo, pos, alt=img.get("alt"),
-                                        nome=f"stivali-{pid}-{pos}.jpg")
-                for v in variantes:
-                    if v.get("image_id") == iid:
-                        api.trocar_imagem_variante(pid, v["id"], nova["id"])
-                        v["image_id"] = nova["id"]
-                api.apagar_imagem(pid, iid)
-                img["id"] = nova["id"]
-                mudou = True
-                cont["corrigidas"] += 1
-                w.writerow(base + ["fundo_cinza", "CORRIGIDA", info["fundo_rgb"],
-                                   info["uniformidade"], src, f"nova_image_id={nova['id']}"])
-            except Exception as e:
-                cont["erros"] += 1
-                w.writerow(base + ["fundo_cinza", "ERRO_AO_TROCAR", info["fundo_rgb"],
-                                   info["uniformidade"], src, str(e)[:200]])
-
-        # Garante que a ordem das fotos ficou exatamente como antes
-        if mudou:
-            for img in todas_imagens:
+            for img in imagens:
+                cont["imagens"] += 1
+                iid, src, pos = img["id"], img["src"], img.get("position") or 1
+                if src.startswith("//"):
+                    src = "https:" + src
+                base = [pid, nome, marca, iid, pos]
                 try:
-                    api.posicionar_imagem(pid, img["id"], img.get("position") or 1)
-                except Exception:
-                    pass
+                    r = download.get(src, timeout=60)
+                    r.raise_for_status()
+                    classe, info, novo, im_orig, im_novo = processar_bytes(r.content)
+                except Exception as e:
+                    cont["erros"] += 1
+                    w.writerow(base + ["erro_download", "nenhuma", "", "", src, str(e)[:200]])
+                    continue
+
+                if classe == "ja_branco":
+                    cont["ja_branco"] += 1
+                    w.writerow(base + [classe, "nenhuma", info["fundo_rgb"], info["uniformidade"], src, ""])
+                    continue
+                if classe in ("fundo_nao_padrao", "falhou_verificacao"):
+                    cont["nao_padrao"] += 1
+                    w.writerow(base + [classe, "revisar_manual", info["fundo_rgb"],
+                                       info["uniformidade"], src, info.get("obs", "")])
+                    continue
+
+                # classe == corrigir
+                if cont["comparacoes"] < AMOSTRAS_COMPARACAO:
+                    salvar_comparacao(im_orig, im_novo,
+                                      f"{OUT_DIR}/comparacoes/{pid}_{iid}.jpg")
+                    cont["comparacoes"] += 1
+
+                if DRY_RUN:
+                    cont["corrigidas"] += 1
+                    w.writerow(base + ["fundo_cinza", "SERIA_CORRIGIDA", info["fundo_rgb"],
+                                       info["uniformidade"], src, ""])
+                    continue
+
+                try:
+                    with open(f"{OUT_DIR}/originais/{pid}_{iid}.jpg", "wb") as fh:
+                        fh.write(r.content)
+                    nova = api.subir_imagem(pid, novo, pos, alt=img.get("alt"),
+                                            nome=f"stivali-{pid}-{pos}.jpg")
+                    for v in variantes:
+                        if v.get("image_id") == iid:
+                            api.trocar_imagem_variante(pid, v["id"], nova["id"])
+                            v["image_id"] = nova["id"]
+                    api.apagar_imagem(pid, iid)
+                    img["id"] = nova["id"]
+                    mudou = True
+                    cont["corrigidas"] += 1
+                    w.writerow(base + ["fundo_cinza", "CORRIGIDA", info["fundo_rgb"],
+                                       info["uniformidade"], src, f"nova_image_id={nova['id']}"])
+                except Exception as e:
+                    cont["erros"] += 1
+                    w.writerow(base + ["fundo_cinza", "ERRO_AO_TROCAR", info["fundo_rgb"],
+                                       info["uniformidade"], src, str(e)[:200]])
+
+            # Garante que a ordem das fotos ficou exatamente como antes
+            if mudou:
+                for img in todas_imagens:
+                    try:
+                        api.posicionar_imagem(pid, img["id"], img.get("position") or 1)
+                    except Exception:
+                        pass
+        except Exception as e:  # um produto com problema não derruba a execução
+            cont["erros"] += 1
+            w.writerow([p.get("id"), nome_produto(p), marca, "", "", "erro_produto", "nenhuma",
+                        "", "", "", str(e)[:200]])
 
         relatorio.flush()
         if cont["produtos"] % 50 == 0:
