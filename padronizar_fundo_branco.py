@@ -61,6 +61,7 @@ DIAS_RECENTES = int(os.environ.get("DIAS_RECENTES", "0") or 0)
 AMOSTRAS_COMPARACAO = int(os.environ.get("AMOSTRAS_COMPARACAO", "80") or 80)
 ACAO = (os.environ.get("ACAO", "branquear") or "branquear").strip().lower()
 POSICOES_VITRINE = int(os.environ.get("POSICOES_VITRINE", "2") or 2)  # capa + hover
+BRANCA_TOTAL_MIN = 0.92   # na vitrine só vale foto com a borda INTEIRA branca (sem faixa de chão)
 PRAZO_MINUTOS = int(os.environ.get("PRAZO_MINUTOS", "330") or 330)
 FOTOS_POR_PRODUTO = int(os.environ.get("FOTOS_POR_PRODUTO", "0") or 0)
 
@@ -305,7 +306,9 @@ def eh_branca(download, img, cache):
             r = download.get(src, timeout=60)
             r.raise_for_status()
             im = carregar_rgb(r.content)
-            cache[iid] = (analisar(np.asarray(im))[0] == "ja_branco", im)
+            classe, _, _, unif = analisar(np.asarray(im))
+            # foto de modelo com parede branca e chão cinza NÃO conta como branca
+            cache[iid] = (classe == "ja_branco" and unif >= BRANCA_TOTAL_MIN, im)
         except Exception:
             cache[iid] = (None, None)  # não deu para baixar -> não mexe
     return cache[iid][0]
