@@ -117,7 +117,16 @@ def analisar(arr: np.ndarray):
     if fundo.min() >= BRANCO_MIN:
         return "ja_branco", fundo, fundo, uniformidade
     croma = fundo.max() - fundo.min()
-    if fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN:
+    # Foto editorial (parede + chão): a faixa de baixo tem outra cor que as laterais.
+    # Nessas, branquear deixa o chão manchado -> não mexe.
+    h, w, _ = arr.shape
+    b = max(2, int(min(h, w) * BORDA_PCT))
+    baixo = np.median(arr[-b:, w // 4: 3 * w // 4].reshape(-1, 3), axis=0)
+    lados = np.median(np.concatenate([arr[h // 3: 2 * h // 3, :b].reshape(-1, 3),
+                                      arr[h // 3: 2 * h // 3, -b:].reshape(-1, 3)]), axis=0)
+    chao = float(np.abs(baixo.astype(float) - lados.astype(float)).max()) > 14
+    if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN
+            and not chao):
         return "fundo_cinza", fundo, fundo, uniformidade
     return "fundo_nao_padrao", fundo, fundo, uniformidade
 
@@ -136,13 +145,14 @@ def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
     croma_fundo = float(np.max(f) - np.min(f)) if np.ndim(f) == 1 else 0.0
     lum = a.mean(axis=2)
     lum_fundo = float(np.mean(f))
+    croma_s = ndimage.gaussian_filter(croma, sigma=2.0)   # tira o ruído de cor do JPEG
     # Proteções para produtos claros (creme, off-white, branco):
     #  - fundo de estúdio é NEUTRO: pixel com cor (creme/bege) não é fundo
     #  - fundo pode ter degradê de luz, mas muito mais claro que ele é produto
     lum_s = ndimage.gaussian_filter(lum, sigma=1.0)
     grad = np.hypot(ndimage.sobel(lum_s, axis=0), ndimage.sobel(lum_s, axis=1)) / 8.0
     candidato = ((dist <= TOL_REGIAO)
-                 & (croma <= croma_fundo + 5)
+                 & (croma_s <= croma_fundo + 9)
                  & (lum <= lum_fundo + 22)
                  & ((grad <= GRADIENTE_MAX) | (dist <= TOL_FUNDO)))
 
