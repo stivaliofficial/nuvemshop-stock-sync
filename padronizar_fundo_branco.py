@@ -59,6 +59,7 @@ MARCA = os.environ.get("MARCA", "").strip().lower()
 LIMITE_PRODUTOS = int(os.environ.get("LIMITE_PRODUTOS", "0") or 0)
 DIAS_RECENTES = int(os.environ.get("DIAS_RECENTES", "0") or 0)
 AMOSTRAS_COMPARACAO = int(os.environ.get("AMOSTRAS_COMPARACAO", "80") or 80)
+POLIR = os.environ.get("POLIR", "true").strip().lower() != "false"
 ACAO = (os.environ.get("ACAO", "branquear") or "branquear").strip().lower()
 POSICOES_VITRINE = int(os.environ.get("POSICOES_VITRINE", "2") or 2)  # capa + hover
 BRANCA_TOTAL_MIN = 0.84   # na vitrine só vale foto com a borda praticamente toda branca (sem faixa de chão)
@@ -107,6 +108,42 @@ def pixels_da_borda(arr: np.ndarray) -> np.ndarray:
     return arr[coords_da_borda(*arr.shape[:2])].reshape(-1, 3)
 
 
+def tem_chao(arr: np.ndarray) -> bool:
+    """Foto editorial (parede + chão): a faixa de baixo tem outra cor que as laterais."""
+    h, w, _ = arr.shape
+    b = max(2, int(min(h, w) * BORDA_PCT))
+    baixo = np.median(arr[-b:, w // 4: 3 * w // 4].reshape(-1, 3), axis=0)
+    lados = np.median(np.concatenate([arr[h // 3: 2 * h // 3, :b].reshape(-1, 3),
+                                      arr[h // 3: 2 * h // 3, -b:].reshape(-1, 3)]), axis=0)
+    return float(np.abs(baixo.astype(float) - lados.astype(float)).max()) > 14
+
+POLIR_DE, POLIR_ATE = 208.0, 244.0
+
+def polir(arr):
+    """Foto que já tem fundo branco mas ficou com sombras/degradês cinza-claro no fundo:
+    leva suavemente para branco puro só o FUNDO (neutro, claro, liso, ligado à borda).
+    Sombra de contato forte (mais escura) e o produto ficam intactos."""
+    a = arr.astype(np.float32)
+    mn = a.min(axis=2)
+    croma = ndimage.gaussian_filter(a.max(axis=2) - mn, 2.0)
+    lum_s = ndimage.gaussian_filter(a.mean(axis=2), 1.0)
+    grad = np.hypot(ndimage.sobel(lum_s, 0), ndimage.sobel(lum_s, 1)) / 8.0
+    cand = (mn >= POLIR_DE - 6) & (croma <= 10) & ((grad <= 2.5) | (mn >= 248))
+    lab, _ = ndimage.label(cand)
+    borda = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    mask = np.isin(lab, borda[borda != 0])
+    if (mask & (mn < 251)).mean() < 0.003:
+        return None
+    t = np.clip((mn - POLIR_DE) / (POLIR_ATE - POLIR_DE), 0, 1)
+    t = (t * t * (3 - 2 * t))[..., None]
+    alvo = a + (255.0 - a) * t
+    m = ndimage.gaussian_filter(mask.astype(np.float32), 1.2)[..., None]
+    out = np.clip(np.rint(a * (1 - m) + alvo * m), 0, 255).astype(np.uint8)
+    if np.abs(out.astype(np.int16) - arr.astype(np.int16)).mean() < 0.35:
+        return None
+    return out
+
+
 def analisar(arr: np.ndarray):
     """Retorna (classificacao, fundo, mediana, uniformidade).
     Critério validado: só fundo cinza LISO de estúdio. Fotos editoriais (parede +
@@ -117,14 +154,7 @@ def analisar(arr: np.ndarray):
     if fundo.min() >= BRANCO_MIN:
         return "ja_branco", fundo, fundo, uniformidade
     croma = fundo.max() - fundo.min()
-    # Foto editorial (parede + chão): a faixa de baixo tem outra cor que as laterais.
-    # Nessas, branquear deixa o chão manchado -> não mexe.
-    h, w, _ = arr.shape
-    b = max(2, int(min(h, w) * BORDA_PCT))
-    baixo = np.median(arr[-b:, w // 4: 3 * w // 4].reshape(-1, 3), axis=0)
-    lados = np.median(np.concatenate([arr[h // 3: 2 * h // 3, :b].reshape(-1, 3),
-                                      arr[h // 3: 2 * h // 3, -b:].reshape(-1, 3)]), axis=0)
-    chao = float(np.abs(baixo.astype(float) - lados.astype(float)).max()) > 14
+    chao = tem_chao(arr)
     if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN
             and not chao):
         return "fundo_cinza", fundo, fundo, uniformidade
@@ -197,6 +227,14 @@ def processar_bytes(data: bytes):
     arr = np.asarray(img)
     classe, sup, fundo, unif = analisar(arr)
     info = {"fundo_rgb": "-".join(str(int(x)) for x in fundo), "uniformidade": round(unif, 2)}
+    if classe == "ja_branco" and POLIR and not tem_chao(arr):
+        polida = polir(arr)
+        if polida is not None:
+            info["obs"] = "polimento (sombras cinza-claro do fundo)"
+            img_nova = Image.fromarray(polida)
+            buf = io.BytesIO()
+            img_nova.save(buf, format="JPEG", quality=93, optimize=True, subsampling=0)
+            return "corrigir", info, buf.getvalue(), img, img_nova
     if classe != "fundo_cinza":
         return classe, info, None, img, None
 
@@ -436,7 +474,7 @@ def reparar(api, w, cont):
                 except Exception:
                     pass
             cont["reparadas"] += 1
-            w.writerow(base + ["REPARADA", "", "", caminho, f"nova_image_id={nova['id']}"])
+            w.writerow(base + ["REPARADA", "", "", caminho, f"nova_image_id={nova['id']}" + (" | " + info["obs"] if info.get("obs") else "")])
         except Exception as e:
             cont["erros"] += 1
             w.writerow(base + ["ERRO", "", "", caminho, str(e)[:200]])
@@ -539,7 +577,7 @@ def main():
                 if DRY_RUN:
                     cont["corrigidas"] += 1
                     w.writerow(base + ["fundo_cinza", "SERIA_CORRIGIDA", info["fundo_rgb"],
-                                       info["uniformidade"], src, ""])
+                                       info["uniformidade"], src, info.get("obs", "")])
                     continue
 
                 try:
@@ -556,7 +594,7 @@ def main():
                     mudou = True
                     cont["corrigidas"] += 1
                     w.writerow(base + ["fundo_cinza", "CORRIGIDA", info["fundo_rgb"],
-                                       info["uniformidade"], src, f"nova_image_id={nova['id']}"])
+                                       info["uniformidade"], src, f"nova_image_id={nova['id']}" + (" | " + info["obs"] if info.get("obs") else "")])
                 except Exception as e:
                     cont["erros"] += 1
                     w.writerow(base + ["fundo_cinza", "ERRO_AO_TROCAR", info["fundo_rgb"],
