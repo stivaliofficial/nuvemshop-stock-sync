@@ -128,18 +128,19 @@ def polir(arr):
     croma = ndimage.gaussian_filter(a.max(axis=2) - mn, 2.0)
     lum_s = ndimage.gaussian_filter(a.mean(axis=2), 1.0)
     grad = np.hypot(ndimage.sobel(lum_s, 0), ndimage.sobel(lum_s, 1)) / 8.0
-    cand = (mn >= POLIR_DE - 6) & (croma <= 10) & ((grad <= 2.5) | (mn >= 248))
+    # fundo neutro, ou levemente tingido (lilás/rosado) quando já é bem claro
+    cand = (mn >= POLIR_DE - 6) & ((croma <= 10) | ((croma <= 22) & (mn >= 232))) & ((grad <= 2.5) | (mn >= 248))
     lab, _ = ndimage.label(cand)
     borda = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
     mask = np.isin(lab, borda[borda != 0])
-    if (mask & (mn < 251)).mean() < 0.003:
+    if (mask & (mn < 252)).mean() < 0.001:
         return None
     t = np.clip((mn - POLIR_DE) / (POLIR_ATE - POLIR_DE), 0, 1)
     t = (t * t * (3 - 2 * t))[..., None]
     alvo = a + (255.0 - a) * t
     m = ndimage.gaussian_filter(mask.astype(np.float32), 1.2)[..., None]
     out = np.clip(np.rint(a * (1 - m) + alvo * m), 0, 255).astype(np.uint8)
-    if np.abs(out.astype(np.int16) - arr.astype(np.int16)).mean() < 0.35:
+    if np.abs(out.astype(np.int16) - arr.astype(np.int16)).mean() < 0.06:
         return None
     return out
 
@@ -155,11 +156,39 @@ def analisar(arr: np.ndarray):
         return "ja_branco", fundo, fundo, uniformidade
     croma = fundo.max() - fundo.min()
     chao = tem_chao(arr)
+    # Produto branco/claro e neutro sobre fundo claro (ex: bota branca em fundo cinza-claro):
+    # o produto tem quase o mesmo tom do fundo e branquear apagaria o produto -> não mexe.
+    dif = np.abs(arr.astype(np.int16) - fundo.astype(np.int16)).max(axis=2)
+    prod = arr[dif > 10].astype(np.int16)
+    if len(prod) > 50:
+        lum_prod = float(np.median(prod.mean(axis=1)))
+        croma_prod = float(np.median(prod.max(axis=1) - prod.min(axis=1)))
+        if lum_prod >= float(fundo.mean()) - 12 and croma_prod <= 9:
+            chao = True
     if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN
             and not chao):
         return "fundo_cinza", fundo, fundo, uniformidade
     return "fundo_nao_padrao", fundo, fundo, uniformidade
 
+
+
+def superficie_lum(lum):
+    """Luminância do fundo estimada ponto a ponto (ajuste suave nas bordas):
+    acompanha degradê de luz sem confundir produto branco com fundo."""
+    h, w = lum.shape
+    b = max(2, int(min(h, w) * BORDA_PCT))
+    mb = np.zeros((h, w), bool); mb[:b] = mb[-b:] = True; mb[:, :b] = mb[:, -b:] = True
+    yy, xx = np.nonzero(mb)
+    v = lum[mb]
+    med = np.median(v)
+    ok = np.abs(v - med) <= 25
+    def base(y, x):
+        x = x / max(w - 1, 1) - 0.5; y = y / max(h - 1, 1) - 0.5
+        return np.stack([np.ones_like(x), x, y, x * x, y * y, x * y], -1)
+    A = base(yy[ok].astype(np.float32), xx[ok].astype(np.float32))
+    coef = np.linalg.lstsq(A, v[ok], rcond=None)[0]
+    gy, gx = np.mgrid[0:h, 0:w].astype(np.float32)
+    return base(gy, gx) @ coef
 
 def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
     """Deixa o fundo branco preservando produto e sombras suaves."""
@@ -178,12 +207,12 @@ def clarear_fundo(arr: np.ndarray, sup: np.ndarray) -> np.ndarray:
     croma_s = ndimage.gaussian_filter(croma, sigma=2.0)   # tira o ruído de cor do JPEG
     # Proteções para produtos claros (creme, off-white, branco):
     #  - fundo de estúdio é NEUTRO: pixel com cor (creme/bege) não é fundo
-    #  - fundo pode ter degradê de luz, mas muito mais claro que ele é produto
+    #  - fundo pode ter degradê de luz; mais claro que o fundo LOCAL é produto (branco/creme)
     lum_s = ndimage.gaussian_filter(lum, sigma=1.0)
     grad = np.hypot(ndimage.sobel(lum_s, axis=0), ndimage.sobel(lum_s, axis=1)) / 8.0
     candidato = ((dist <= TOL_REGIAO)
                  & (croma_s <= croma_fundo + 9)
-                 & (lum <= lum_fundo + 22)
+                 & (lum <= superficie_lum(lum) + 7)
                  & ((grad <= GRADIENTE_MAX) | (dist <= TOL_FUNDO)))
 
     # 2) Só vale o que está ligado à borda da foto (flood fill) -> não pega o produto
