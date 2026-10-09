@@ -29,6 +29,10 @@ on:
         description: "Só produtos criados nos últimos N dias (0 = todos)"
         required: false
         default: "0"
+  # AUTOMÁTICO: toda noite, 00:30 em Brasília (03:30 UTC), trata as peças criadas
+  # nos últimos 2 dias: branqueia e depois reordena capa/hover.
+  schedule:
+    - cron: "30 3 * * *"
 
 jobs:
   fundo-branco:
@@ -37,14 +41,20 @@ jobs:
     permissions:
       contents: read
       actions: read
+    env:
+      NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
+      NUVEMSHOP_STORE_ID: "3277373"
+      PRAZO_MINUTOS: "330"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install pillow numpy scipy requests
+
+      # ---------- Execução manual ----------
       - name: Baixar backups das fotos originais (só no reparar)
-        if: github.event.inputs.acao == 'reparar'
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.acao == 'reparar'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -52,19 +62,37 @@ jobs:
           ARGS=""
           for a in $ARTS; do ARGS="$ARGS -n $a"; done
           gh run download $ARGS -D artefatos
-          ls artefatos
-      - name: Rodar padronizador
+          ls -R artefatos | head
+      - name: Rodar padronizador (manual)
+        if: github.event_name == 'workflow_dispatch'
         env:
-          NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
-          NUVEMSHOP_STORE_ID: "3277373"
           ACAO: ${{ github.event.inputs.acao }}
           DRY_RUN: ${{ github.event.inputs.modo_teste }}
           MARCA: ${{ github.event.inputs.marca }}
           LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
           FOTOS_POR_PRODUTO: ${{ github.event.inputs.fotos_por_produto }}
           DIAS_RECENTES: ${{ github.event.inputs.dias_recentes }}
-          PRAZO_MINUTOS: "330"
         run: python padronizar_fundo_branco.py
+
+      # ---------- Execução automática (toda noite) ----------
+      - name: Novidades - branquear
+        if: github.event_name == 'schedule'
+        env:
+          ACAO: branquear
+          DRY_RUN: "false"
+          DIAS_RECENTES: "2"
+        run: python padronizar_fundo_branco.py
+      - name: Novidades - reordenar capa/hover
+        if: github.event_name == 'schedule'
+        env:
+          ACAO: reordenar
+          DRY_RUN: "false"
+          DIAS_RECENTES: "2"
+        run: |
+          mv output output_branquear
+          python padronizar_fundo_branco.py
+          mv output output_reordenar && mkdir output && mv output_branquear output_reordenar output/
+
       - name: Salvar relatório, comparações e backup
         if: always()
         uses: actions/upload-artifact@v4
