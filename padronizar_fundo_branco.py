@@ -471,6 +471,8 @@ def reparar(api, w, cont):
             break
         pid, atual = int(ln["product_id"]), int(ln["image_id_atual"])
         caminho = os.path.join("artefatos", ln["artefato"], "originais", ln["arquivo_original"])
+        if not os.path.exists(caminho):  # com um único backup, o GitHub extrai sem a subpasta
+            caminho = os.path.join("artefatos", "originais", ln["arquivo_original"])
         base = [pid, "", "", atual, "", "reparo"]
         try:
             original = open(caminho, "rb").read()
