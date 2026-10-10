@@ -459,6 +459,34 @@ def reordenar_produto(api, download, p, w, cont, marca):
     w.writerow([pid, nome, marca, "", "", "vitrine_nao_branca", "REORDENADO", "", "", "", desc])
 
 
+def assinatura(im):
+    """Assinatura visual da foto (contornos em 64x64): não muda com fundo cinza vs branco."""
+    g = np.asarray(im.convert("L").resize((64, 64)), dtype=np.float32)
+    e = np.hypot(ndimage.sobel(g, 0), ndimage.sobel(g, 1)).ravel()
+    e = e - e.mean()
+    return e / (np.linalg.norm(e) + 1e-6)
+
+
+def achar_por_semelhanca(imagens, original_im):
+    """Quando o código da foto mudou (polimento/reordenação), acha no produto a foto
+    atual mais parecida com a original do backup."""
+    alvo = assinatura(original_im)
+    melhor, nota = None, -1.0
+    for img in imagens:
+        src = img["src"]
+        if src.startswith("//"):
+            src = "https:" + src
+        try:
+            r = requests.get(src, timeout=60, headers={"User-Agent": USER_AGENT})
+            r.raise_for_status()
+            sc = float(np.dot(alvo, assinatura(carregar_rgb(r.content))))
+        except Exception:
+            continue
+        if sc > nota:
+            melhor, nota = img, sc
+    return (melhor, nota) if nota >= 0.80 else (None, nota)
+
+
 def reparar(api, w, cont):
     """Refaz, a partir da foto ORIGINAL guardada no backup, as fotos que o branqueamento
     antigo danificou (produtos creme/claros com manchas). Lê reparar.csv."""
@@ -490,8 +518,12 @@ def reparar(api, w, cont):
             imagens = sorted(p.get("images") or [], key=lambda i: i.get("position") or 0)
             alvo = next((i for i in imagens if i["id"] == atual), None)
             if alvo is None:
-                w.writerow(base + ["nao_encontrada", "", "", caminho, "foto atual não existe mais"])
-                continue
+                alvo, nota = achar_por_semelhanca(imagens, im_orig)
+                if alvo is None:
+                    w.writerow(base + ["nao_encontrada", "", "", caminho,
+                                       f"foto atual não existe mais (semelhança máx {nota:.2f})"])
+                    continue
+                atual = alvo["id"]
             pos = alvo.get("position") or 1
             nova = api.subir_imagem(pid, novo, pos, alt=alvo.get("alt"), nome=f"stivali-{pid}-{pos}.jpg")
             for v in p.get("variants") or []:
