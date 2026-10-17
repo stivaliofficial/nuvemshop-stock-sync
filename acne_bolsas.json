@@ -1,6 +1,6 @@
 [
   {
-    "name": "ACNE STUDIOS MUSUBI MIDI SHOULDER BAG",
+    "name": "ACNE STUDIOS MUSUBI MIDI SHOULDER BAG BLACK",
     "mpn": "A10361-900",
     "acne_url": "https://www.acnestudios.com/eu/en/musubi-midi-new-r/A10361-900.html",
     "color": "Black",
@@ -37,7 +37,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MUSUBI MIDI SHOULDER BAG",
+    "name": "ACNE STUDIOS MUSUBI MIDI SHOULDER BAG CAMEL BROWN",
     "mpn": "A10361-640",
     "acne_url": "https://www.acnestudios.com/eu/en/musubi-midi-new-r/A10361-640.html",
     "color": "Camel Brown",
@@ -74,7 +74,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MUSUBI TOTE",
+    "name": "ACNE STUDIOS MUSUBI TOTE BLACK",
     "mpn": "A10338-900",
     "acne_url": "https://www.acnestudios.com/eu/en/musubi-tote-black/A10338-900.html",
     "color": "Black",
@@ -110,7 +110,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MUSUBI SUEDE MIDI BAG",
+    "name": "ACNE STUDIOS MUSUBI SUEDE MIDI BAG COGNAC BROWN",
     "mpn": "C10273-295",
     "acne_url": "https://www.acnestudios.com/eu/en/ac-ux-bags000002/C10273-295.html",
     "color": "Cognac Brown",
@@ -147,7 +147,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO CAMERA SHOULDER BAG",
+    "name": "ACNE STUDIOS CAMERO CAMERA SHOULDER BAG BLACK",
     "mpn": "C10283-900",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-camera-v/C10283-900.html",
     "color": "Black",
@@ -182,7 +182,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO CAMERA SHOULDER BAG",
+    "name": "ACNE STUDIOS CAMERO CAMERA SHOULDER BAG TAUPE BEIGE",
     "mpn": "C10235-CGZ",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-camera/C10235-CGZ.html",
     "color": "Taupe Beige",
@@ -217,7 +217,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO PARTY SHOULDER BAG",
+    "name": "ACNE STUDIOS CAMERO PARTY SHOULDER BAG BLACK",
     "mpn": "C10269-900",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-party-v/C10269-900.html",
     "color": "Black",
@@ -252,7 +252,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO CAMERA SUEDE SHOULDER BAG",
+    "name": "ACNE STUDIOS CAMERO CAMERA SUEDE SHOULDER BAG DARK BROWN",
     "mpn": "C10330-ADM",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-camera-suede-wax/C10330-ADM.html",
     "color": "Dark Brown",
@@ -286,41 +286,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO PARTY SUEDE SHOULDER BAG",
-    "mpn": "C10338-ADM",
-    "acne_url": "https://www.acnestudios.com/eu/en/camero-party-suede-wax/C10338-ADM.html",
-    "color": "Dark Brown",
-    "price_brl": 14275,
-    "descricao": "Bolsa Camero da Acne Studios, de linhas limpas e visual contemporâneo. Bolsa de ombro em camurça encerada, tamanho party. Peça versátil, elegante e atemporal.",
-    "caimento_material": [
-      "Bolsa de ombro em camurça encerada, tamanho party.",
-      "Design Camero, de linhas limpas",
-      "Alça ajustável",
-      "Camurça encerada",
-      "ID do modelo: C10338-ADM",
-      "Made in Italy",
-      "Produto original Acne Studios"
-    ],
-    "seo_title": "Bolsa Acne Studios Camero Party Suede Dark Brown",
-    "seo_description": "Bolsa Acne Studios Camero Party Suede Shoulder Bag na cor Dark Brown. Original, importada, em até 12x no cartão.",
-    "tags": [
-      "acne studios",
-      "bolsa",
-      "camero",
-      "bag",
-      "camero party suede",
-      "feminino",
-      "dark brown"
-    ],
-    "sizes": [
-      "Único"
-    ],
-    "category_id": 41598504,
-    "weight": 1.0,
-    "stock": 1
-  },
-  {
-    "name": "ACNE STUDIOS CAMERO KIT CROSSBODY BAG",
+    "name": "ACNE STUDIOS CAMERO KIT CROSSBODY BAG BLACK",
     "mpn": "C10276-900",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-kit/C10276-900.html",
     "color": "Black",
@@ -354,7 +320,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO CAMERA CANVAS BAG",
+    "name": "ACNE STUDIOS CAMERO CAMERA CANVAS BAG CREAM BEIGE/BROWN",
     "mpn": "C10325-CX4",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-camera-canvas/C10325-CX4.html",
     "color": "Cream Beige/Brown",
@@ -388,7 +354,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO CAMERA PATCHWORK BAG",
+    "name": "ACNE STUDIOS CAMERO CAMERA PATCHWORK BAG BURGUNDY",
     "mpn": "C10329-479",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-camera-patchwork/C10329-479.html",
     "color": "Burgundy",
@@ -423,7 +389,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO GYM BACKPACK",
+    "name": "ACNE STUDIOS CAMERO GYM BACKPACK BLACK",
     "mpn": "C10248-900",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-gym/C10248-900.html",
     "color": "Black",
@@ -457,7 +423,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO HOTEL SUEDE SHOULDER BAG",
+    "name": "ACNE STUDIOS CAMERO HOTEL SUEDE SHOULDER BAG DENIM BLUE",
     "mpn": "C10262-822",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-hotel-suede-v/C10262-822.html",
     "color": "Denim Blue",
@@ -491,7 +457,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS CAMERO DUFFLE BAG",
+    "name": "ACNE STUDIOS CAMERO DUFFLE BAG BURGUNDY",
     "mpn": "C10353-479",
     "acne_url": "https://www.acnestudios.com/eu/en/camero-duffle-old/C10353-479.html",
     "color": "Burgundy",
@@ -526,7 +492,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MULTIPOCKET SHOULDER BAG",
+    "name": "ACNE STUDIOS MULTIPOCKET SHOULDER BAG BLACK",
     "mpn": "A10432-900",
     "acne_url": "https://www.acnestudios.com/eu/en/multipocket-lux/A10432-900.html",
     "color": "Black",
@@ -562,7 +528,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MULTIPOCKET SHOULDER BAG",
+    "name": "ACNE STUDIOS MULTIPOCKET SHOULDER BAG DARK BROWN/BEIGE",
     "mpn": "A10368-AIP",
     "acne_url": "https://www.acnestudios.com/eu/en/multipocket-vintage/A10368-AIP.html",
     "color": "Dark Brown/Beige",
@@ -598,43 +564,7 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MULTIPOCKET MINI BUCKET BAG",
-    "mpn": "A10471-900",
-    "acne_url": "https://www.acnestudios.com/eu/en/multipocket-mini-bucket-lux/A10471-900.html",
-    "color": "Black",
-    "price_brl": 11350,
-    "descricao": "Bolsa Multipocket da Acne Studios, com construção de múltiplos bolsos e detalhes de nó inspirados em jeans. Bolsa saco (bucket) mini em couro liso. Funcional e statement ao mesmo tempo.",
-    "caimento_material": [
-      "Bolsa saco (bucket) mini em couro liso.",
-      "Construção multibolsos",
-      "Detalhes de nó e rebites inspirados em jeans",
-      "Alça e alça de ombro ajustáveis",
-      "Fechamento com cordão",
-      "Couro",
-      "ID do modelo: A10471-900",
-      "Made in Italy",
-      "Produto original Acne Studios"
-    ],
-    "seo_title": "Bolsa Acne Studios Multipocket Mini Bucket Black",
-    "seo_description": "Bolsa Acne Studios Multipocket Mini Bucket Bag na cor Black. Original, importada, em até 12x no cartão.",
-    "tags": [
-      "acne studios",
-      "bolsa",
-      "multi",
-      "bag",
-      "multipocket mini bucket",
-      "feminino",
-      "black"
-    ],
-    "sizes": [
-      "Único"
-    ],
-    "category_id": 41598504,
-    "weight": 0.8,
-    "stock": 1
-  },
-  {
-    "name": "ACNE STUDIOS MULTIPOCKET MICRO BAG",
+    "name": "ACNE STUDIOS MULTIPOCKET MICRO BAG WHITE/GREY",
     "mpn": "A10386-AHX",
     "acne_url": "https://www.acnestudios.com/eu/en/multipocket-micro-crossbody-vintage/A10386-AHX.html",
     "color": "White/Grey",
@@ -670,31 +600,29 @@
     "stock": 1
   },
   {
-    "name": "ACNE STUDIOS MULTIPOCKET TOTE BAG",
-    "mpn": "A10427-900",
-    "acne_url": "https://www.acnestudios.com/eu/en/multipocket-tote-bag-black/A10427-900.html",
+    "name": "ACNE STUDIOS CAMERO PARTY CROCO SHOULDER BAG BLACK",
+    "mpn": "A10447-900",
+    "acne_url": "https://www.acnestudios.com/eu/en/camero-party-croco/A10447-900.html",
     "color": "Black",
-    "price_brl": 19150,
-    "descricao": "Bolsa Multipocket da Acne Studios, com construção de múltiplos bolsos e detalhes de nó inspirados em jeans. Bolsa tote espaçosa em couro liso brilhante, multibolsos. Funcional e statement ao mesmo tempo.",
+    "price_brl": 15250,
+    "descricao": "Bolsa Camero da Acne Studios, de linhas limpas e visual contemporâneo. Bolsa de ombro em couro com textura croco, tamanho party. Peça versátil, elegante e atemporal.",
     "caimento_material": [
-      "Bolsa tote espaçosa em couro liso brilhante, multibolsos.",
-      "Construção multibolsos",
-      "Detalhes de nó e rebites inspirados em jeans",
-      "Alça superior e alça de ombro ajustável",
-      "Ferragens em metal preto envelhecido",
-      "Couro",
-      "ID do modelo: A10427-900",
+      "Bolsa de ombro em couro com textura croco, tamanho party.",
+      "Design Camero, de linhas limpas",
+      "Alça ajustável",
+      "Couro com textura croco",
+      "ID do modelo: A10447-900",
       "Made in Italy",
       "Produto original Acne Studios"
     ],
-    "seo_title": "Bolsa Acne Studios Multipocket Tote Black",
-    "seo_description": "Bolsa Acne Studios Multipocket Tote Bag na cor Black. Original, importada, em até 12x no cartão.",
+    "seo_title": "Bolsa Acne Studios Camero Party Croco Black",
+    "seo_description": "Bolsa Acne Studios Camero Party Shoulder Bag na cor Black. Original, importada, em até 12x no cartão.",
     "tags": [
       "acne studios",
       "bolsa",
-      "multi",
+      "camero",
       "bag",
-      "multipocket tote",
+      "camero party croco",
       "feminino",
       "black"
     ],
@@ -702,7 +630,77 @@
       "Único"
     ],
     "category_id": 41598504,
-    "weight": 1.2,
+    "weight": 1.0,
+    "stock": 1
+  },
+  {
+    "name": "ACNE STUDIOS CAMERO CAMERA PATCHWORK HC BAG DARK BLUE/BRIGHT BLUE",
+    "mpn": "C10346-AZJ",
+    "acne_url": "https://www.acnestudios.com/eu/en/camero-camera-patchwork-hc/C10346-AZJ.html",
+    "color": "Dark Blue/Bright Blue",
+    "price_brl": 20450,
+    "descricao": "Bolsa Camero da Acne Studios, de linhas limpas e visual contemporâneo. Bolsa de ombro em patchwork de couro, tamanho camera. Peça versátil, elegante e atemporal.",
+    "caimento_material": [
+      "Bolsa de ombro em patchwork de couro, tamanho camera.",
+      "Design Camero, de linhas limpas",
+      "Alça ajustável",
+      "Patchwork de couro",
+      "ID do modelo: C10346-AZJ",
+      "Made in Italy",
+      "Produto original Acne Studios"
+    ],
+    "seo_title": "Bolsa Acne Studios Camero Patchwork Dark Blue/Bright Blue",
+    "seo_description": "Bolsa Acne Studios Camero Camera Patchwork Bag na cor Dark Blue/Bright Blue. Original, importada, em até 12x no cartão.",
+    "tags": [
+      "acne studios",
+      "bolsa",
+      "camero",
+      "bag",
+      "camero patchwork",
+      "feminino",
+      "dark blue/bright blue"
+    ],
+    "sizes": [
+      "Único"
+    ],
+    "category_id": 41598504,
+    "weight": 1.0,
+    "stock": 1
+  },
+  {
+    "name": "ACNE STUDIOS MULTIPOCKET SHOULDER BAG WHITE/GREY",
+    "mpn": "A10368-AHX",
+    "acne_url": "https://www.acnestudios.com/eu/en/multipocket-vintage/A10368-AHX.html",
+    "color": "White/Grey",
+    "price_brl": 13300,
+    "descricao": "Bolsa Multipocket da Acne Studios, com construção de múltiplos bolsos e detalhes de nó inspirados em jeans. Bolsa de ombro em couro granulado lavado, multibolsos. Funcional e statement ao mesmo tempo.",
+    "caimento_material": [
+      "Bolsa de ombro em couro granulado lavado, multibolsos.",
+      "Construção multibolsos",
+      "Detalhes de nó e rebites inspirados em jeans",
+      "Alça superior e alça de ombro ajustável",
+      "Fechamentos magnéticos",
+      "Couro granulado",
+      "ID do modelo: A10368-AHX",
+      "Made in Italy",
+      "Produto original Acne Studios"
+    ],
+    "seo_title": "Bolsa Acne Studios Multipocket Vintage White/Grey",
+    "seo_description": "Bolsa Acne Studios Multipocket Shoulder Bag na cor White/Grey. Original, importada, em até 12x no cartão.",
+    "tags": [
+      "acne studios",
+      "bolsa",
+      "multi",
+      "bag",
+      "multipocket vintage",
+      "feminino",
+      "white/grey"
+    ],
+    "sizes": [
+      "Único"
+    ],
+    "category_id": 41598504,
+    "weight": 1.0,
     "stock": 1
   }
 ]
