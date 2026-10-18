@@ -46,16 +46,18 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     # acha todas as imagens 2000x desse MPN: captura o hash (dwXXXX) e o sufixo (_FLAT, _A, ...)
     pat = re.compile(
         r"/default/(dw[0-9a-f]+)/images/" + re.escape(mpn[:2]) + r"/" +
-        re.escape(mpn.split('-')[0]) + r"-/2000x/" + re.escape(mpn) + r"_([A-Z0-9]+)\.jpg", re.I)
-    achadas = {}  # sufixo -> url (primeira ocorrencia)
+        re.escape(mpn.split('-')[0]) + r"-/2000x/" + re.escape(mpn) + r"_([A-Z0-9][A-Z0-9_\-]*?)\.jpg", re.I)
+    achadas = {}  # view (A, FLAT, Y...) -> url. Lida com sufixos unissex tipo UNISEX-WOMAN_A.
     for m in pat.finditer(html):
-        suf = m.group(2).upper()
-        if suf in ("PLP_HOVER",):
+        suf = m.group(2).upper()           # ex.: A, FLAT, UNISEX-WOMAN_A, PLP_HOVER
+        view = suf.split("_")[-1]          # pega a vista real: A, FLAT, HOVER...
+        if view == "HOVER":
             continue
-        if suf not in achadas:
-            achadas[suf] = base + m.group(1) + f"/images/{mpn[:2]}/{mpn.split('-')[0]}-/2000x/{mpn}_{suf}.jpg"
-    # ordem desejada: FLAT (packshot) -> A (modelo) -> B, C, D, E ...
-    ordem = ["FLAT", "A", "B", "C", "D", "E", "X", "Y", "Z"]
+        if view not in achadas:
+            achadas[view] = base + m.group(1) + f"/images/{mpn[:2]}/{mpn.split('-')[0]}-/2000x/{mpn}_{suf}.jpg"
+    # ordem desejada: PRODUTO SOZINHO primeiro (packshot), MODELO depois.
+    # Na Acne, _FLAT e _W/_X/_Y/_Z sao a peca sozinha; _A/_B/_C/_D/_E sao com modelo.
+    ordem = ["FLAT", "W", "X", "Y", "Z", "A", "B", "C", "D", "E"]
     urls = []
     for suf in ordem:
         if suf in achadas:
@@ -95,6 +97,22 @@ class Nuvemshop:
             if any(str(v).strip().upper() == name.strip().upper() for v in n.values()):
                 return True
         return False
+
+    def find_by_name(self, name):
+        r = self._req("GET", "/products", params={"q": name, "per_page": 10, "fields": "id,name"}, timeout=30)
+        if r.status_code == 404:
+            return []
+        r.raise_for_status()
+        ids = []
+        for p in r.json():
+            n = p.get("name", {})
+            if any(str(v).strip().upper() == name.strip().upper() for v in n.values()):
+                ids.append(p["id"])
+        return ids
+
+    def delete(self, pid):
+        r = self._req("DELETE", f"/products/{pid}", timeout=60)
+        return r.status_code in (200, 204, 404)
 
     def create(self, payload):
         r = self._req("POST", "/products", json=payload, timeout=300)
@@ -145,6 +163,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--arquivo", required=True, help="JSON de produtos, ex.: acne_saias.json")
     ap.add_argument("--live", action="store_true", help="criar de verdade (sem isso, so testa)")
+    ap.add_argument("--substituir", action="store_true", help="se o produto ja existe, apaga e cria de novo (corrige ordem de fotos/preco)")
     args = ap.parse_args()
 
     produtos = json.load(open(args.arquivo, encoding="utf-8-sig"))
@@ -161,14 +180,21 @@ def main():
         print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})")
         imgs = extrair_fotos(p["acne_url"], mpn)
         if imgs:
-            print(f"    fotos: {len(imgs)} (1a = {'PACKSHOT' if imgs[0].endswith('_FLAT.jpg') else 'modelo'})")
+            suf1 = imgs[0].rsplit('_',1)[-1].replace('.jpg','').upper()
+            eh_modelo = suf1 in ('A','B','C','D','E')
+            print(f"    fotos: {len(imgs)} (1a = {'MODELO' if eh_modelo else 'PECA SOZINHA'})")
         else:
             print("    fotos: NENHUMA encontrada (confira a URL/MPN)")
         if not args.live:
             continue
         try:
-            if ns.exists(nome):
+            existentes = ns.find_by_name(nome)
+            if existentes and not args.substituir:
                 print("    ja existe na loja -> pulando"); pulados += 1; continue
+            if existentes and args.substituir:
+                for pid in existentes:
+                    ns.delete(pid)
+                print(f"    (apaguei {len(existentes)} versao(oes) antiga(s) para recriar)")
             ns.create(monta_payload(p, imgs))
             print("    + criado"); criados += 1
             time.sleep(1)
