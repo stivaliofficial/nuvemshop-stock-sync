@@ -11,6 +11,10 @@ on:
         description: 'Criar de verdade na loja (desmarcado = so teste)'
         type: boolean
         default: false
+      substituir:
+        description: 'Se ja existir, APAGAR e recriar (corrige ordem de fotos/preco)'
+        type: boolean
+        default: false
 
 jobs:
   importar:
@@ -28,4 +32,5 @@ jobs:
         run: |
           ARGS="--arquivo ${{ inputs.arquivo }}"
           [ "${{ inputs.live }}" = "true" ] && ARGS="$ARGS --live"
+          [ "${{ inputs.substituir }}" = "true" ] && ARGS="$ARGS --substituir"
           python import_acne.py $ARGS
