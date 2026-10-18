@@ -42,30 +42,24 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     except Exception as e:  # noqa
         print(f"    ! nao consegui abrir a pagina da Acne ({e})")
         return []
-    base = f"https://www.acnestudios.com/dw/image/v2/AAXV_PRD/on/demandware.static/-/Sites-acne-product-catalog/default/"
-    # acha todas as imagens 2000x desse MPN: captura o hash (dwXXXX) e o sufixo (_FLAT, _A, ...)
+    # Pega o ENDERECO REAL de cada foto direto da pagina (sem montar o caminho na mao):
+    # qualquer imagem /2000x/ cujo arquivo seja {MPN}_{vista}.jpg. Funciona para qualquer
+    # estrutura de pasta e lida com sufixos unissex (UNISEX-WOMAN_A etc).
     pat = re.compile(
-        r"/default/(dw[0-9a-f]+)/images/" + re.escape(mpn[:2]) + r"/" +
-        re.escape(mpn.split('-')[0]) + r"-/2000x/" + re.escape(mpn) + r"_([A-Z0-9][A-Z0-9_\-]*?)\.jpg", re.I)
-    achadas = {}  # view (A, FLAT, Y...) -> url. Lida com sufixos unissex tipo UNISEX-WOMAN_A.
+        r'(https://www\.acnestudios\.com/dw/image/v2/[^\s"\'<>]*?/2000x/' +
+        re.escape(mpn) + r'_([A-Za-z0-9][A-Za-z0-9_\-]*?)\.jpg)', re.I)
+    achadas = {}  # vista (A, FLAT, Y, G...) -> url limpa
     for m in pat.finditer(html):
-        suf = m.group(2).upper()           # ex.: A, FLAT, UNISEX-WOMAN_A, PLP_HOVER
-        view = suf.split("_")[-1]          # pega a vista real: A, FLAT, HOVER...
+        url = m.group(1).split("?")[0]
+        view = m.group(2).upper().split("_")[-1]   # pega a vista real mesmo em UNISEX-WOMAN_A
         if view == "HOVER":
             continue
         if view not in achadas:
-            achadas[view] = base + m.group(1) + f"/images/{mpn[:2]}/{mpn.split('-')[0]}-/2000x/{mpn}_{suf}.jpg"
-    # ordem desejada: PRODUTO SOZINHO primeiro (packshot), MODELO depois.
-    # Na Acne, _FLAT e _W/_X/_Y/_Z sao a peca sozinha; _A/_B/_C/_D/_E sao com modelo.
-    ordem = ["FLAT", "W", "X", "Y", "Z", "A", "B", "C", "D", "E"]
-    urls = []
-    for suf in ordem:
-        if suf in achadas:
-            urls.append(achadas[suf])
-    # qualquer outro sufixo que sobrou
-    for suf, u in achadas.items():
-        if suf not in ordem:
-            urls.append(u)
+            achadas[view] = url
+    # ordem: PECA SOZINHA primeiro (FLAT/W/X/Y/Z), depois MODELO (A/B/C/D/E/F/G)
+    ordem = ["FLAT", "W", "X", "Y", "Z", "A", "B", "C", "D", "E", "F", "G"]
+    urls = [achadas[v] for v in ordem if v in achadas]
+    urls += [u for v, u in achadas.items() if v not in ordem]
     return urls[:max_fotos]
 
 
