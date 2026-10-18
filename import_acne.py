@@ -172,7 +172,7 @@ def main():
         nome = p["name"]
         mpn = p["mpn"]
         print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})")
-        imgs = extrair_fotos(p["acne_url"], mpn)
+        imgs = p.get("images") or extrair_fotos(p["acne_url"], mpn)
         if imgs:
             suf1 = imgs[0].rsplit('_',1)[-1].replace('.jpg','').upper()
             eh_modelo = suf1 in ('A','B','C','D','E')
