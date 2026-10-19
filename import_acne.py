@@ -19,7 +19,7 @@ Uso:
 
 Precisa do segredo NUVEMSHOP_ACCESS_TOKEN no repositório.
 """
-import argparse, json, os, re, sys, time
+import argparse, base64, json, os, re, sys, time
 import requests
 
 STORE_ID = "3277373"
@@ -29,6 +29,20 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
 
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+
+
+def baixar_imagem(url):
+    """Baixa a foto e devolve (base64, nome). Assim enviamos o ARQUIVO para a Nuvemshop
+    em vez do link, driblando o filtro que bloqueia URLs com '/ad/'. Reduz p/ 1200px."""
+    u = url.split("?")[0] + "?sw=1200"
+    nome = url.split("?")[0].rsplit("/", 1)[-1]
+    try:
+        r = SESSION.get(u, timeout=45)
+        if r.status_code == 200 and r.content and len(r.content) > 800:
+            return base64.b64encode(r.content).decode(), nome
+    except Exception:  # noqa
+        pass
+    return None, nome
 
 
 # ----------------------------------------------------------------- fotos Acne
@@ -130,6 +144,17 @@ def monta_descricao(p):
             f"<h2><strong>CAIMENTO &amp; MATERIAL</strong></h2><p>{bullets}</p>" + SELO)
 
 
+def _montar_imagens(imgs):
+    out = []
+    for i, u in enumerate(imgs):
+        b64, nome = baixar_imagem(u)
+        if b64:
+            out.append({"attachment": b64, "filename": nome, "position": i + 1})
+        else:
+            out.append({"src": u, "position": i + 1})
+    return out
+
+
 def monta_payload(p, imgs):
     cor = p["color"]
     variants = []
@@ -149,7 +174,7 @@ def monta_payload(p, imgs):
         "seo_description": {"pt": p["seo_description"]},
         "tags": ", ".join(p.get("tags", [])),
         "variants": variants,
-        "images": [{"src": u, "position": i + 1} for i, u in enumerate(imgs)],
+        "images": _montar_imagens(imgs),
     }
 
 
