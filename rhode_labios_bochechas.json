@@ -1,0 +1,44 @@
+[
+  {
+    "shopify_collection": "https://www.rhodeskin.com/collections/lip-cheek/products.json",
+    "category_id": 41851829,
+    "brand": "Rhode",
+    "marca_header": "RHODE",
+    "secao": "BENEFÍCIOS",
+    "price_eur_map": {
+      "lip tint": 26,
+      "lip treatment": 26,
+      "lip shape": 32,
+      "lip boost": 30,
+      "pocket blush": 33,
+      "blush": 33,
+      "pocket pearl": 34,
+      "pocket bronze": 34,
+      "snap-on lip case": 60,
+      "lip case": 50,
+      "mirror": 32,
+      "pocket brush": 24,
+      "headband": 24
+    },
+    "price_eur_default": 30,
+    "skip_keywords": [
+      "set",
+      "kit",
+      "edit",
+      "trio",
+      "duo",
+      "combo",
+      "the "
+    ],
+    "tags": [
+      "rhode",
+      "hailey bieber",
+      "lábios",
+      "bochechas",
+      "lip",
+      "blush"
+    ],
+    "weight": 0.1,
+    "stock": 2
+  }
+]

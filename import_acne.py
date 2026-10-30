@@ -78,6 +78,48 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     return urls[:max_fotos]
 
 
+def expandir_colecao(entry):
+    """Le uma colecao inteira do Shopify (todos os produtos/cores) e devolve os itens
+    prontos. Pula kits/sets (por palavra-chave) e calcula o preco por tipo de produto."""
+    url = entry["shopify_collection"].split("?")[0]
+    skip = [k.lower() for k in entry.get("skip_keywords", [])]
+    pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
+    default = entry.get("price_eur_default", 30)
+    out = []
+    for page in range(1, 8):
+        try:
+            r = SESSION.get(f"{url}?limit=250&page={page}", timeout=40)
+            prods = r.json().get("products", [])
+        except Exception:  # noqa
+            prods = []
+        if not prods:
+            break
+        for prod in prods:
+            title = (prod.get("title") or "").strip()
+            tl = title.lower()
+            if not title or any(k in tl for k in skip):
+                continue
+            eur = default
+            for k, v in pmap.items():
+                if k in tl:
+                    eur = v
+                    break
+            imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
+            out.append({
+                "name": (title.upper() if tl.startswith("rhode") else f"RHODE {title}".upper()), "brand": entry.get("brand", "Rhode"),
+                "marca_header": entry.get("marca_header", "RHODE"), "secao": entry.get("secao", "BENEF\u00cdCIOS"),
+                "images": imgs, "color": "\u00danico", "price_brl": round(eur * 6.5 + 320, 2),
+                "descricao": f"{title} da Rhode, de Hailey Bieber. Produto de l\u00e1bios e bochechas da marca.",
+                "caimento_material": ["Produto 100% original Rhode (Hailey Bieber)", "Pronta entrega / importado"],
+                "seo_title": f"Rhode {title.title()}"[:70],
+                "seo_description": f"{title.title()} da Rhode (Hailey Bieber). Original, importado, em at\u00e9 12x no cart\u00e3o.",
+                "tags": entry.get("tags", ["rhode"]), "sizes": ["\u00danico"],
+                "category_id": entry["category_id"], "weight": entry.get("weight", 0.1),
+                "stock": entry.get("stock", 2),
+            })
+    return out
+
+
 def shopify_images(url_produto, max_fotos=5):
     """Pega as fotos de um produto Shopify (ex: Rhode) pelo endpoint .json."""
     base = url_produto.split("?")[0].rstrip("/")
@@ -202,6 +244,16 @@ def main():
     args = ap.parse_args()
 
     produtos = json.load(open(args.arquivo, encoding="utf-8-sig"))
+    # expande entradas de colecao Shopify (todos os produtos/cores) em itens individuais
+    expandido = []
+    for it in produtos:
+        if it.get("shopify_collection"):
+            achados = expandir_colecao(it)
+            print(f"  (colecao {it['shopify_collection'].rsplit('/',2)[-2]}: {len(achados)} produto(s) encontrados)")
+            expandido.extend(achados)
+        else:
+            expandido.append(it)
+    produtos = expandido
     token = os.environ.get("NUVEMSHOP_ACCESS_TOKEN", "")
     if args.live and not token:
         sys.exit("Sem NUVEMSHOP_ACCESS_TOKEN: nao da para criar. Configure o segredo no repositorio.")
