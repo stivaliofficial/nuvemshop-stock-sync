@@ -107,6 +107,9 @@ def expandir_colecao(entry):
                 if k in tl:
                     eur = v
                     break
+            vars_ = prod.get("variants", [])
+            if vars_ and not any(v.get("available", True) for v in vars_):
+                continue  # esgotado -> pula
             imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
             out.append({
                 "name": (title.upper() if tl.startswith("rhode") else f"RHODE {title}".upper()), "brand": entry.get("brand", "Rhode"),
@@ -121,6 +124,21 @@ def expandir_colecao(entry):
                 "stock": entry.get("stock", 2),
             })
     return out
+
+
+def shopify_disponivel(url_produto):
+    """True se o produto Shopify tem alguma variante disponivel (nao esgotado).
+    Em caso de duvida/erro, retorna True (nao bloqueia)."""
+    base = url_produto.split("?")[0].rstrip("/")
+    try:
+        r = SESSION.get(base + ".json", timeout=30)
+        if r.status_code == 200:
+            vars_ = r.json().get("product", {}).get("variants", [])
+            if vars_:
+                return any(v.get("available", True) for v in vars_)
+    except Exception:  # noqa
+        pass
+    return True
 
 
 def shopify_images(url_produto, max_fotos=5):
@@ -268,6 +286,9 @@ def main():
         nome = p["name"]
         mpn = p.get("mpn", "")
         print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})")
+        if p.get("shopify_url") and not p.get("images"):
+            if not shopify_disponivel(p["shopify_url"]):
+                print("    esgotado na Rhode -> pulando"); pulados += 1; continue
         if p.get("images"):
             imgs = p["images"]
         elif p.get("shopify_url"):
