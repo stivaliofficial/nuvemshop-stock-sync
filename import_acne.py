@@ -85,6 +85,7 @@ def expandir_colecao(entry):
     skip = [k.lower() for k in entry.get("skip_keywords", [])]
     pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
     default = entry.get("price_eur_default", 30)
+    incl = [k.lower() for k in entry.get("include_keywords", [])]
     out = []
     for page in range(1, 8):
         try:
@@ -98,6 +99,8 @@ def expandir_colecao(entry):
             title = (prod.get("title") or "").strip()
             tl = title.lower()
             if not title or any(k in tl for k in skip):
+                continue
+            if incl and not any(k in tl for k in incl):
                 continue
             eur = default
             for k, v in pmap.items():
