@@ -34,8 +34,9 @@ SESSION.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
 def baixar_imagem(url):
     """Baixa a foto e devolve (base64, nome). Assim enviamos o ARQUIVO para a Nuvemshop
     em vez do link, driblando o filtro que bloqueia URLs com '/ad/'. Reduz p/ 1200px."""
-    u = url.split("?")[0] + "?sw=1200"
-    nome = url.split("?")[0].rsplit("/", 1)[-1]
+    base = url.split("?")[0]
+    nome = base.rsplit("/", 1)[-1]
+    u = base + "?sw=1200" if "acnestudios.com" in url else base
     try:
         r = SESSION.get(u, timeout=45)
         if r.status_code == 200 and r.content and len(r.content) > 800:
@@ -75,6 +76,19 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     urls = [achadas[v] for v in ordem if v in achadas]
     urls += [u for v, u in achadas.items() if v not in ordem]
     return urls[:max_fotos]
+
+
+def shopify_images(url_produto, max_fotos=5):
+    """Pega as fotos de um produto Shopify (ex: Rhode) pelo endpoint .json."""
+    base = url_produto.split("?")[0].rstrip("/")
+    try:
+        r = SESSION.get(base + ".json", timeout=30)
+        if r.status_code == 200:
+            imgs = r.json().get("product", {}).get("images", [])
+            return [i["src"].split("?")[0] for i in imgs][:max_fotos]
+    except Exception:  # noqa
+        pass
+    return []
 
 
 # ------------------------------------------------------------- Nuvemshop API
@@ -139,9 +153,11 @@ def monta_descricao(p):
     nome = p["name"]
     desc = p["descricao"]
     bullets = "".join(f"\u2022 {b}<br>" for b in p["caimento_material"]).rstrip("<br>")
-    return (f"<p><strong>ACNE STUDIOS</strong></p><p><strong>{nome}</strong></p><p><br></p>"
+    header = p.get("marca_header", "ACNE STUDIOS")
+    secao = p.get("secao", "CAIMENTO &amp; MATERIAL")
+    return (f"<p><strong>{header}</strong></p><p><strong>{nome}</strong></p><p><br></p>"
             f"<h2><strong>DESCRI\u00c7\u00c3O</strong></h2><p>{desc}</p><p><br></p>"
-            f"<h2><strong>CAIMENTO &amp; MATERIAL</strong></h2><p>{bullets}</p>" + SELO)
+            f"<h2><strong>{secao}</strong></h2><p>{bullets}</p>" + SELO)
 
 
 def _montar_imagens(imgs):
@@ -165,7 +181,7 @@ def monta_payload(p, imgs):
     return {
         "name": {"pt": p["name"]},
         "description": {"pt": monta_descricao(p)},
-        "brand": "Acne Studios",
+        "brand": p.get("brand", "Acne Studios"),
         "published": True,
         "requires_shipping": True,
         "attributes": [{"pt": "Cor"}, {"pt": "Tamanho"}],
@@ -195,9 +211,14 @@ def main():
     criados = pulados = falhas = 0
     for i, p in enumerate(produtos, 1):
         nome = p["name"]
-        mpn = p["mpn"]
+        mpn = p.get("mpn", "")
         print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})")
-        imgs = p.get("images") or extrair_fotos(p["acne_url"], mpn)
+        if p.get("images"):
+            imgs = p["images"]
+        elif p.get("shopify_url"):
+            imgs = shopify_images(p["shopify_url"])
+        else:
+            imgs = extrair_fotos(p["acne_url"], mpn)
         if imgs:
             suf1 = imgs[0].rsplit('_',1)[-1].replace('.jpg','').upper()
             eh_modelo = suf1 in ('A','B','C','D','E')
