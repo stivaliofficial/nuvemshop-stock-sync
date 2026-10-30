@@ -122,6 +122,7 @@ def expandir_colecao(entry):
                 "tags": entry.get("tags", ["rhode"]), "sizes": ["\u00danico"],
                 "category_id": entry["category_id"], "weight": entry.get("weight", 0.1),
                 "stock": entry.get("stock", 2),
+                "add_category_if_exists": entry.get("add_category_if_exists", False),
             })
     return out
 
@@ -198,6 +199,19 @@ class Nuvemshop:
     def delete(self, pid):
         r = self._req("DELETE", f"/products/{pid}", timeout=60)
         return r.status_code in (200, 204, 404)
+
+    def add_category(self, pid, cat_id):
+        r = self._req("GET", f"/products/{pid}", params={"fields": "id,categories"}, timeout=30)
+        if r.status_code >= 400:
+            return f"erro-get {r.status_code}"
+        cats = []
+        for c in r.json().get("categories", []):
+            cats.append(c["id"] if isinstance(c, dict) else c)
+        if cat_id in cats:
+            return "ja-tinha"
+        cats.append(cat_id)
+        r = self._req("PUT", f"/products/{pid}", json={"categories": cats}, timeout=60)
+        return "ok" if r.status_code < 400 else f"erro {r.status_code}"
 
     def create(self, payload):
         r = self._req("POST", "/products", json=payload, timeout=300)
@@ -306,6 +320,11 @@ def main():
         try:
             existentes = ns.find_by_name(nome)
             if existentes and not args.substituir:
+                if p.get("add_category_if_exists"):
+                    r = "nenhum"
+                    for pid in existentes:
+                        r = ns.add_category(pid, p["category_id"])
+                    print(f"    ja existe -> categoria {p['category_id']} adicionada ({r})"); pulados += 1; continue
                 print("    ja existe na loja -> pulando"); pulados += 1; continue
             if existentes and args.substituir:
                 for pid in existentes:
