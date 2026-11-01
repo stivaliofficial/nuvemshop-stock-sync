@@ -37,12 +37,15 @@ def baixar_imagem(url):
     base = url.split("?")[0]
     nome = base.rsplit("/", 1)[-1]
     u = base + "?sw=1200" if "acnestudios.com" in url else base
-    try:
-        r = SESSION.get(u, timeout=45)
-        if r.status_code == 200 and r.content and len(r.content) > 800:
-            return base64.b64encode(r.content).decode(), nome
-    except Exception:  # noqa
-        pass
+    for _tentativa in range(2):
+        try:
+            r = SESSION.get(u, timeout=45)
+            if r.status_code == 200 and r.content and len(r.content) > 800:
+                return base64.b64encode(r.content).decode(), nome
+            if r.status_code == 404:
+                break
+        except Exception:  # noqa
+            pass
     return None, nome
 
 
@@ -239,12 +242,11 @@ def monta_descricao(p):
 
 def _montar_imagens(imgs):
     out = []
-    for i, u in enumerate(imgs):
+    for u in imgs:
         b64, nome = baixar_imagem(u)
         if b64:
-            out.append({"attachment": b64, "filename": nome, "position": i + 1})
-        else:
-            out.append({"src": u, "position": i + 1})
+            out.append({"attachment": b64, "filename": nome, "position": len(out) + 1})
+        # se nao baixou (ex: 404), pula essa foto e segue com as demais
     return out
 
 
