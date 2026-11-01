@@ -145,6 +145,77 @@ def shopify_disponivel(url_produto):
     return True
 
 
+def expandir_tnf(entry):
+    """Le a listagem da The North Face (es-es) pagina a pagina e devolve os produtos
+    prontos (nome EN do modelo, 4 fotos HERO/ALT1/ALT2/ALT3, preco pela formula).
+    Pula os codigos que existem no BR (br_excluir) e os repetidos."""
+    import re
+    base = entry["tnf_listing"].split("?")[0]
+    paginas = int(entry.get("paginas", 4))
+    excluir = set(c.upper()[:8] for c in entry.get("br_excluir", []))
+    mult = entry.get("eur_mult", 6.5); add = entry.get("eur_add", 1500)
+    prefixo = entry.get("nome_prefixo", "THE NORTH FACE")
+    IMG = ("https://assets.thenorthface.eu/images/t_img/f_auto,q_auto:best,w_1200/"
+           "v{ver}/{code}-{suf}/{file}-{suf}.jpg")
+    hero_re = re.compile(r"/v(\d+)/(NF0A[A-Z0-9]+)-HERO/([A-Za-z0-9\-]+?)-HERO\.jpg")
+    alt_re = re.compile(r"/v(\d+)/(NF0A[A-Z0-9]+)-(ALT\d+)/[A-Za-z0-9\-]+?-\3\.jpg")
+    price_re = re.compile(r"Precio:\s*([\d.]+),\d\d\s*\u20ac")
+    out = []; vistos = set()
+    for page in range(1, paginas + 1):
+        try:
+            html = SESSION.get(f"{base}?page={page}", timeout=40).text
+        except Exception:  # noqa
+            continue
+        heros = list(hero_re.finditer(html))
+        alts = {}
+        for m in alt_re.finditer(html):
+            alts.setdefault(m.group(2), {})[m.group(3)] = m.group(1)
+        prices = list(price_re.finditer(html))
+        for i, h in enumerate(heros):
+            code = h.group(2)               # ex NF0A8H3DBI4 (estilo+cor)
+            file = h.group(3)
+            estilo = code[:8]
+            if code in vistos or estilo in excluir:
+                continue
+            vistos.add(code)
+            # preco: primeiro "Precio:" depois deste hero e antes do proximo
+            fim = heros[i + 1].start() if i + 1 < len(heros) else len(html)
+            eur = None
+            for p in prices:
+                if h.end() <= p.start() < fim:
+                    eur = float(p.group(1).replace(".", "")); break
+            if not eur:
+                continue
+            vh = h.group(1)
+            v1 = alts.get(code, {}).get("ALT1", vh)
+            v2 = alts.get(code, {}).get("ALT2", v1)
+            v3 = str(int(v2) + 1)
+            imgs = [IMG.format(ver=vh, code=code, suf="HERO", file=file),
+                    IMG.format(ver=v1, code=code, suf="ALT1", file=file),
+                    IMG.format(ver=v2, code=code, suf="ALT2", file=file),
+                    IMG.format(ver=v3, code=code, suf="ALT3", file=file)]
+            sem_mens = file[5:] if file.startswith("Mens-") else file
+            modelo = sem_mens.split("-TNF-")[0].replace("-", " ").strip()
+            if any(k in modelo.lower() for k in entry.get("skip_palavras", [])):
+                continue
+            nome = f"{prefixo} {modelo}".upper()
+            out.append({
+                "name": nome, "brand": "The North Face", "marca_header": "THE NORTH FACE",
+                "secao": "DETALHES", "images": imgs, "color": estilo,
+                "price_brl": round(eur * mult + add, 2),
+                "descricao": f"{modelo} da The North Face \u2014 pe\u00e7a importada da Europa, n\u00e3o dispon\u00edvel no site BR.",
+                "caimento_material": [f"Modelo: {modelo}", f"C\u00f3digo global TNF: {estilo}",
+                                      "Importado da Europa \u2014 n\u00e3o dispon\u00edvel no site BR",
+                                      "Produto 100% original The North Face"],
+                "seo_title": f"The North Face {modelo}"[:70],
+                "seo_description": f"The North Face {modelo}. Importado da Europa, original, em at\u00e9 12x no cart\u00e3o.",
+                "tags": ["the north face", "tnf", "masculino", estilo.lower()],
+                "sizes": entry.get("sizes", ["P", "M", "G", "GG", "GGG"]),
+                "category_id": entry["category_id"], "weight": 1.2, "stock": 1,
+            })
+    return out
+
+
 def shopify_images(url_produto, max_fotos=5):
     """Pega as fotos de um produto Shopify (ex: Rhode) pelo endpoint .json."""
     base = url_produto.split("?")[0].rstrip("/")
@@ -284,7 +355,11 @@ def main():
     # expande entradas de colecao Shopify (todos os produtos/cores) em itens individuais
     expandido = []
     for it in produtos:
-        if it.get("shopify_collection"):
+        if it.get("tnf_listing"):
+            ach = expandir_tnf(it)
+            print(f"  (TNF: {len(ach)} jaqueta(s) exclusivas encontradas)")
+            expandido.extend(ach)
+        elif it.get("shopify_collection"):
             achados = expandir_colecao(it)
             print(f"  (colecao {it['shopify_collection'].rsplit('/',2)[-2]}: {len(achados)} produto(s) encontrados)")
             expandido.extend(achados)

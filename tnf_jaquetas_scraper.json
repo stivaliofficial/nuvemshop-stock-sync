@@ -1,0 +1,60 @@
+[
+  {
+    "tnf_listing": "https://www.thenorthface.com/es-es/c/hombre/chaquetas-211702",
+    "paginas": 4,
+    "category_id": 41864964,
+    "eur_mult": 6.5,
+    "eur_add": 1500,
+    "nome_prefixo": "THE NORTH FACE",
+    "sizes": [
+      "P",
+      "M",
+      "G",
+      "GG",
+      "GGG"
+    ],
+    "br_excluir": [
+      "NF0A8H3D",
+      "NF0A8HYS",
+      "NF0A832G",
+      "NF0A3C8D",
+      "NF0A5GIE",
+      "NF0A832J",
+      "NF0A3JQQ",
+      "NF0A88XU",
+      "NF0A88WD",
+      "NF0A84FC",
+      "NF0A8J3W",
+      "NF0A88WE",
+      "NF0A8J6C",
+      "NF0A8DNX",
+      "NF0A8D1U",
+      "NF0A8993",
+      "NF0A8J5D",
+      "NF0A8H2D",
+      "NF0A88U2",
+      "NF0A8DQN",
+      "NF0A8B58",
+      "NF0A8J3X",
+      "NF0A7QEY",
+      "NF0A2VD3",
+      "NF0A7QAW",
+      "NF0A8ESG",
+      "NF0A7ZZ4",
+      "NF0A8EUD"
+    ],
+    "skip_palavras": [
+      "antora",
+      "venture",
+      "alta vista",
+      "ridgelite",
+      "packable",
+      "resolve",
+      "dryzzle",
+      "cyclone",
+      "quest",
+      "first dawn",
+      "evolution"
+    ]
+  }
+]
