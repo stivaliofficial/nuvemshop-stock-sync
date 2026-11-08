@@ -44,7 +44,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE X CECILIE BAHNSEN WOMEN'S SYMONE DOTKNIT TOP - MIDNIGHT SKY",
@@ -91,7 +92,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S RETRO DENALI FLEECE JACKET - TIMELESS TAUPE/TNF BLACK",
@@ -138,7 +140,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S COLLARED FLEECE JACKET - GARNET BLACK HEATHER",
@@ -185,7 +188,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S YUMIORI OFF-PEAK PRINTED FLEECE JACKET - BOLD BLUE PRINT",
@@ -232,7 +236,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S SKI EMBROIDERY 1/4 ZIP SWEATSHIRT - WHITE DUNE",
@@ -279,7 +284,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S OSITO FLEECE JACKET - WHITE DUNE",
@@ -326,7 +332,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S YUMIORI FULL-ZIP FLEECE JACKET - PEARL STONE/GLACIER",
@@ -373,7 +380,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S CRAGMONT FLEECE JACKET - TIMELESS TAUPE",
@@ -420,7 +428,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S EXTREME PILE 2 PRINTED JACKET - WOODLAND GREEN PRINT",
@@ -467,7 +476,8 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   },
   {
     "name": "THE NORTH FACE WOMEN'S TNF FLEESKI 1/4 ZIP FLEECE - WHITE DUNE",
@@ -514,6 +524,7 @@
     ],
     "category_id": 41930838,
     "weight": 0.6,
-    "stock": 1
+    "stock": 1,
+    "add_category_if_exists": true
   }
 ]
