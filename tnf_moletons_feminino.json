@@ -42,10 +42,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE X CECILIE BAHNSEN WOMEN'S SYMONE DOTKNIT TOP - MIDNIGHT SKY",
@@ -90,10 +89,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S RETRO DENALI FLEECE JACKET - TIMELESS TAUPE/TNF BLACK",
@@ -138,10 +136,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S COLLARED FLEECE JACKET - GARNET BLACK HEATHER",
@@ -186,10 +183,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S YUMIORI OFF-PEAK PRINTED FLEECE JACKET - BOLD BLUE PRINT",
@@ -234,10 +230,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S SKI EMBROIDERY 1/4 ZIP SWEATSHIRT - WHITE DUNE",
@@ -282,10 +277,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S OSITO FLEECE JACKET - WHITE DUNE",
@@ -330,10 +324,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S YUMIORI FULL-ZIP FLEECE JACKET - PEARL STONE/GLACIER",
@@ -378,10 +371,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S CRAGMONT FLEECE JACKET - TIMELESS TAUPE",
@@ -426,10 +418,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S EXTREME PILE 2 PRINTED JACKET - WOODLAND GREEN PRINT",
@@ -474,10 +465,9 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   },
   {
     "name": "THE NORTH FACE WOMEN'S TNF FLEESKI 1/4 ZIP FLEECE - WHITE DUNE",
@@ -522,9 +512,8 @@
       "G",
       "GG"
     ],
-    "category_id": 41930838,
+    "category_id": 41989409,
     "weight": 0.6,
-    "stock": 1,
-    "add_category_if_exists": true
+    "stock": 1
   }
 ]
