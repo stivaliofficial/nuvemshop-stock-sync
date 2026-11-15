@@ -1,0 +1,27 @@
+[
+  {
+    "shopify_collection": "https://coperni.com/collections/all-access/products.json",
+    "name_prefix": "COPERNI",
+    "brand": "Coperni",
+    "marca_header": "COPERNI",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 1300,
+    "ignore_sold_out": true,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "category_id": 42113264,
+    "sizes": ["Único"],
+    "weight": 0.3,
+    "stock": 1,
+    "tags": ["coperni", "acessorio", "acessorios", "grife", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da Coperni — acessório original importado, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: Coperni",
+      "Importado · produto 100% original Coperni"
+    ],
+    "seo_title_tpl": "Coperni {model}{cor_sp} | Acessório Original",
+    "seo_description_tpl": "{model}{cor_sp} da Coperni. Acessório original, importado, em até 12x no cartão. Compre na Stivali com envio para todo o Brasil."
+  }
+]

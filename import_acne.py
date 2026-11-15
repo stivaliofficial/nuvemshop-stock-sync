@@ -20,6 +20,7 @@ Uso:
 Precisa do segredo NUVEMSHOP_ACCESS_TOKEN no repositório.
 """
 import argparse, base64, json, os, re, sys, time
+import html as _htmlmod
 import requests
 
 STORE_ID = "3277373"
@@ -79,6 +80,49 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     urls = [achadas[v] for v in ordem if v in achadas]
     urls += [u for v, u in achadas.items() if v not in ordem]
     return urls[:max_fotos]
+
+
+# ------------------------------------------------- descricao oficial + traducao
+def _html_para_texto(html):
+    """Converte o body_html do produto (descricao oficial da marca) em texto limpo,
+    preservando quebras de linha e marcadores de lista."""
+    if not html:
+        return ""
+    t = re.sub(r"(?i)<\s*br\s*/?>", "\n", html)
+    t = re.sub(r"(?i)<\s*li[^>]*>", "• ", t)
+    t = re.sub(r"(?i)</\s*(p|li|div|h[1-6]|ul|ol)\s*>", "\n", t)
+    t = re.sub(r"<[^>]+>", "", t)
+    t = _htmlmod.unescape(t)
+    linhas = [l.strip() for l in t.split("\n")]
+    return "\n".join(l for l in linhas if l)
+
+
+_TRAD_CACHE = {}
+
+
+def traduzir(texto, sl="en", tl="pt"):
+    """Traduz EN->PT usando o endpoint publico gratuito do Google (sem chave).
+    Em caso de erro, devolve o texto original (nunca inventa)."""
+    texto = (texto or "").strip()
+    if not texto:
+        return ""
+    if texto in _TRAD_CACHE:
+        return _TRAD_CACHE[texto]
+    out = texto
+    try:
+        r = SESSION.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": sl, "tl": tl, "dt": "t", "q": texto[:4800]},
+            timeout=25)
+        if r.status_code == 200:
+            data = r.json()
+            juntado = "".join(seg[0] for seg in data[0] if seg and seg[0])
+            if juntado.strip():
+                out = juntado
+    except Exception:  # noqa
+        out = texto
+    _TRAD_CACHE[texto] = out
+    return out
 
 
 # vocabulario de cores p/ extrair a cor do handle/tags quando o titulo so traz o modelo
@@ -196,6 +240,7 @@ def _shopify_products_robusto(colecao_url):
         out.append({
             "title": j.get("title", ""), "handle": j.get("handle", h),
             "options": opts, "tags": j.get("tags", []),
+            "body_html": j.get("description", ""),
             "variants": [{"price": f"{eur:.2f}", "available": j.get("available", True)}],
             "images": [{"src": _norm_img(s)} for s in j.get("images", [])],
         })
@@ -275,11 +320,18 @@ def expandir_colecao(entry):
             vistos.add(nome)
             imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
             ctx = {"model": model, "brand": brand, "cor": cor or "", "cor_sp": cor_sp}
+            # descricao: ou a traducao da descricao OFICIAL da marca, ou o template
+            if entry.get("descricao_from_source"):
+                bruto = _html_para_texto(prod.get("body_html") or "")
+                txt = traduzir(bruto) if (bruto and entry.get("traduzir", True)) else bruto
+                descricao = txt.replace("\n", "<br>") if txt else desc_tpl.format(**ctx)
+            else:
+                descricao = desc_tpl.format(**ctx)
             out.append({
                 "name": nome, "brand": brand, "marca_header": header, "secao": secao,
                 "images": imgs, "color": cor or "\u00danico",
                 "price_brl": round(eur * mult + add, 2),
-                "descricao": desc_tpl.format(**ctx),
+                "descricao": descricao,
                 "caimento_material": [b.format(**ctx) for b in caimento],
                 "seo_title": seo_t_tpl.format(**ctx)[:70],
                 "seo_description": seo_d_tpl.format(**ctx)[:160],
