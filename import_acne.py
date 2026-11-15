@@ -314,7 +314,11 @@ def expandir_colecao(entry):
             cor = _cor_do_produto(prod)
             model = title
             cor_sp = (" " + cor) if cor else ""
-            nome = f"{prefixo} {model}{cor_sp}".upper()
+            # nao repete o prefixo se o titulo da peca ja comeca com a marca
+            if tl.startswith(prefixo.lower()):
+                nome = f"{model}{cor_sp}".upper()
+            else:
+                nome = f"{prefixo} {model}{cor_sp}".upper()
             if nome in vistos:
                 continue  # mesma modelo+cor ja adicionada (outra variante/material)
             vistos.add(nome)
