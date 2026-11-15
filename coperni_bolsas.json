@@ -1,0 +1,26 @@
+[
+  {
+    "shopify_collection": "https://coperni.com/collections/all-bags/products.json",
+    "name_prefix": "COPERNI",
+    "brand": "Coperni",
+    "marca_header": "COPERNI",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 3877,
+    "category_id": 42113265,
+    "sizes": ["Único"],
+    "weight": 0.8,
+    "stock": 1,
+    "tags": ["coperni", "bolsa", "bolsas", "grife", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da Coperni — bolsa de grife original, importada e com pronta entrega na Stivali. Design icônico da maison francesa Coperni.",
+    "caimento_material": [
+      "Marca: Coperni",
+      "Modelo: {model}{cor_sp}",
+      "Bolsa importada — pronta entrega",
+      "Produto 100% original Coperni"
+    ],
+    "seo_title_tpl": "Coperni {model}{cor_sp} | Bolsa Original",
+    "seo_description_tpl": "Bolsa {model}{cor_sp} da Coperni. Original, importada, em até 12x no cartão. Compre a bolsa Coperni na Stivali com envio para todo o Brasil."
+  }
+]

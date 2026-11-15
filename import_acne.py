@@ -81,14 +81,134 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
     return urls[:max_fotos]
 
 
+# vocabulario de cores p/ extrair a cor do handle/tags quando o titulo so traz o modelo
+_CORES = {
+    "black": "Black", "brown": "Brown", "dark": "Dark", "red": "Red", "beige": "Beige",
+    "white": "White", "grey": "Grey", "gray": "Gray", "green": "Green", "blue": "Blue",
+    "navy": "Navy", "tan": "Tan", "camel": "Camel", "cream": "Cream", "pink": "Pink",
+    "silver": "Silver", "gold": "Gold", "khaki": "Khaki", "burgundy": "Burgundy",
+    "ecru": "Ecru", "chocolate": "Chocolate", "taupe": "Taupe", "ivory": "Ivory",
+    "orange": "Orange", "yellow": "Yellow", "purple": "Purple", "sand": "Sand",
+    "olive": "Olive", "nude": "Nude", "mocha": "Mocha", "bordeaux": "Bordeaux",
+}
+
+
+def _cor_do_produto(prod):
+    """Descobre a cor de um produto Shopify quando o titulo so traz o modelo.
+    Prioridade: opcao 'Color' -> tag de cor -> cor no handle. Devolve '' se nada."""
+    # 1) opcao chamada Color/Colour/Cor
+    for opt in prod.get("options", []):
+        if (opt.get("name") or "").strip().lower() in ("color", "colour", "cor"):
+            vals = opt.get("values") or []
+            if vals and str(vals[0]).strip().lower() not in ("default title", "title", ""):
+                return str(vals[0]).strip().title()
+    # 2) tag de cor (ex 'color:Black', 'Brown Dark')
+    for tag in prod.get("tags", []) if isinstance(prod.get("tags"), list) else str(prod.get("tags", "")).split(","):
+        t = str(tag).strip()
+        base = t.split(":")[-1].strip()
+        toks = [w for w in re.split(r"[\s\-]+", base.lower()) if w in _CORES]
+        if toks:
+            return " ".join(_CORES[w] for w in toks)
+    # 3) handle (ex copba01405-calf-leather-black-dark)
+    toks = [w for w in (prod.get("handle") or "").lower().split("-") if w in _CORES]
+    if toks:
+        return " ".join(_CORES[w] for w in toks)
+    return ""
+
+
 def expandir_colecao(entry):
     """Le uma colecao inteira do Shopify (todos os produtos/cores) e devolve os itens
-    prontos. Pula kits/sets (por palavra-chave) e calcula o preco por tipo de produto."""
+    prontos. Pula esgotados e kits/sets (por palavra-chave).
+
+    Dois modos:
+      - Legado (Rhode): sem 'name_prefix' -> comportamento antigo.
+      - Generico (Coperni etc): com 'name_prefix'. Usa o preco do proprio JSON do
+        Shopify (eur = preco da variante) quando 'use_json_price' = true, aplica a
+        formula eur*eur_mult+eur_add, monta nome 'PREFIXO MODELO COR' e SEO forte."""
     url = entry["shopify_collection"].split("?")[0]
     skip = [k.lower() for k in entry.get("skip_keywords", [])]
+    incl = [k.lower() for k in entry.get("include_keywords", [])]
+    prefixo = entry.get("name_prefix")  # None -> modo legado Rhode
+
+    # ---- modo generico (Coperni e futuras marcas Shopify) ----
+    if prefixo:
+        mult = entry.get("eur_mult", 6.5); add = entry.get("eur_add", 0)
+        usa_json = entry.get("use_json_price", True)
+        pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
+        default = entry.get("price_eur_default", 0)
+        sizes = entry.get("sizes", ["\u00danico"])
+        brand = entry.get("brand", prefixo.title())
+        header = entry.get("marca_header", prefixo.upper())
+        secao = entry.get("secao", "DETALHES")
+        tags = entry.get("tags", [prefixo.lower()])
+        desc_tpl = entry.get("descricao_tpl",
+            "{model}{cor_sp} da {brand} \u2014 pe\u00e7a original importada, pronta entrega.")
+        seo_t_tpl = entry.get("seo_title_tpl", "{brand} {model}{cor_sp}")
+        seo_d_tpl = entry.get("seo_description_tpl",
+            "{model}{cor_sp} da {brand}. Original, importada, em at\u00e9 12x no cart\u00e3o. Compre na Stivali.")
+        caimento = entry.get("caimento_material",
+            ["Produto 100% original {brand}", "Importado \u00b7 pronta entrega"])
+        vistos = set()
+        out = []
+        for page in range(1, 8):
+            try:
+                r = SESSION.get(f"{url}?limit=250&page={page}", timeout=40)
+                prods = r.json().get("products", [])
+            except Exception:  # noqa
+                prods = []
+            if not prods:
+                break
+            for prod in prods:
+                title = (prod.get("title") or "").strip()
+                tl = title.lower()
+                if not title or any(k in tl for k in skip):
+                    continue
+                if incl and not any(k in tl for k in incl):
+                    continue
+                vars_ = prod.get("variants", [])
+                if vars_ and not any(v.get("available", True) for v in vars_):
+                    continue  # esgotado -> pula
+                # preco em euro
+                if usa_json and vars_:
+                    try:
+                        eur = float(vars_[0].get("price") or 0)
+                    except Exception:  # noqa
+                        eur = default
+                else:
+                    eur = default
+                    for k, v in pmap.items():
+                        if k in tl:
+                            eur = v; break
+                if not eur:
+                    continue
+                cor = _cor_do_produto(prod)
+                model = title
+                cor_sp = (" " + cor) if cor else ""
+                nome = f"{prefixo} {model}{cor_sp}".upper()
+                if nome in vistos:
+                    continue  # mesma modelo+cor ja adicionada (outra variante/material)
+                vistos.add(nome)
+                imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
+                ctx = {"model": model, "brand": brand, "cor": cor or "",
+                       "cor_sp": cor_sp}
+                out.append({
+                    "name": nome, "brand": brand, "marca_header": header, "secao": secao,
+                    "images": imgs, "color": cor or "\u00danico",
+                    "price_brl": round(eur * mult + add, 2),
+                    "descricao": desc_tpl.format(**ctx),
+                    "caimento_material": [b.format(**ctx) for b in caimento],
+                    "seo_title": seo_t_tpl.format(**ctx)[:70],
+                    "seo_description": seo_d_tpl.format(**ctx)[:160],
+                    "tags": tags + ([cor.lower()] if cor else []),
+                    "sizes": sizes, "category_id": entry["category_id"],
+                    "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
+                    "add_category_if_exists": entry.get("add_category_if_exists", False),
+                })
+        return out
+
+    # ---- modo legado (Rhode) ----
     pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
     default = entry.get("price_eur_default", 30)
-    incl = [k.lower() for k in entry.get("include_keywords", [])]
     out = []
     for page in range(1, 8):
         try:
@@ -159,7 +279,7 @@ def expandir_tnf(entry):
            "v{ver}/{code}-{suf}/{file}-{suf}.jpg")
     hero_re = re.compile(r"/v(\d+)/(NF0A[A-Z0-9]+)-HERO/([A-Za-z0-9\-]+?)-HERO\.jpg")
     alt_re = re.compile(r"/v(\d+)/(NF0A[A-Z0-9]+)-(ALT\d+)/[A-Za-z0-9\-]+?-\3\.jpg")
-    price_re = re.compile(r"Precio:\s*([\d.]+),\d\d\s*\u20ac")
+    price_re = re.compile(r"([\d.]{2,6}),(\d\d)\s*(?:&nbsp;|\s)*(?:\u20ac|&euro;|EUR)")
     out = []; vistos = set()
     for page in range(1, paginas + 1):
         try:
@@ -167,6 +287,7 @@ def expandir_tnf(entry):
         except Exception:  # noqa
             continue
         heros = list(hero_re.finditer(html))
+        print(f"    (pagina {page}: {len(heros)} fotos HERO, {len(list(price_re.finditer(html)))} precos; html {len(html)} chars)")
         alts = {}
         for m in alt_re.finditer(html):
             alts.setdefault(m.group(2), {})[m.group(3)] = m.group(1)
