@@ -116,6 +116,93 @@ def _cor_do_produto(prod):
     return ""
 
 
+def _norm_img(src):
+    src = (src or "").split("?")[0]
+    if src.startswith("//"):
+        src = "https:" + src
+    return src
+
+
+def _shopify_products_robusto(colecao_url):
+    """Devolve a lista de produtos de uma colecao Shopify, resistente a lojas que
+    desativaram /products.json (ex: Coperni). Estrategia:
+      1) tenta <colecao>/products.json paginado;
+      2) se vier vazio, raspa os handles do HTML da colecao e puxa cada produto
+         pelo endpoint /products/<handle>.js (que quase nunca e desativado).
+    Normaliza tudo para o mesmo formato (title, handle, options, tags, variants
+    com price em EUR string, images com src https)."""
+    base = colecao_url.split("?")[0]
+    # pagina HTML da colecao = tira o /products.json do fim, se houver
+    col_html = re.sub(r"/products\.json$", "", base).rstrip("/")
+    prods_json_url = col_html + "/products.json"
+
+    # ---- 1) products.json ----
+    achados = []
+    for page in range(1, 8):
+        try:
+            r = SESSION.get(f"{prods_json_url}?limit=250&page={page}", timeout=40)
+            if page == 1:
+                print(f"    (products.json: HTTP {r.status_code}, {len(r.content)} bytes)")
+            ps = r.json().get("products", []) if r.status_code == 200 else []
+        except Exception as e:  # noqa
+            if page == 1:
+                print(f"    (products.json falhou: {e})")
+            ps = []
+        if not ps:
+            break
+        achados.extend(ps)
+    if achados:
+        return achados
+
+    # ---- 2) fallback: handles do HTML + /products/<handle>.js ----
+    handles = []
+    vistos = set()
+    for page in range(1, 10):
+        try:
+            html = SESSION.get(f"{col_html}?page={page}", timeout=40).text
+        except Exception:  # noqa
+            break
+        novos = 0
+        for h in re.findall(r"/products/([a-z0-9][a-z0-9\-]+)", html):
+            if h not in vistos:
+                vistos.add(h); handles.append(h); novos += 1
+        if page == 1:
+            print(f"    (HTML da colecao: {len(handles)} handle(s) na 1a pagina)")
+        if novos == 0:
+            break
+    dominio = "https://" + col_html.split("/")[2]
+    out = []
+    for h in handles:
+        try:
+            j = SESSION.get(f"{dominio}/products/{h}.js", timeout=30).json()
+        except Exception:  # noqa
+            continue
+        if not j.get("title"):
+            continue
+        cents = j.get("price")
+        if cents is None:
+            vs = j.get("variants") or [{}]
+            cents = vs[0].get("price", 0)
+        try:
+            eur = float(cents) / 100.0
+        except Exception:  # noqa
+            eur = 0
+        opts = []
+        for o in j.get("options", []):
+            if isinstance(o, dict):
+                opts.append({"name": o.get("name", ""), "values": o.get("values", [])})
+            else:
+                opts.append({"name": str(o), "values": []})
+        out.append({
+            "title": j.get("title", ""), "handle": j.get("handle", h),
+            "options": opts, "tags": j.get("tags", []),
+            "variants": [{"price": f"{eur:.2f}", "available": j.get("available", True)}],
+            "images": [{"src": _norm_img(s)} for s in j.get("images", [])],
+        })
+    print(f"    (fallback .js: {len(out)} produto(s) montado(s) de {len(handles)} handle(s))")
+    return out
+
+
 def expandir_colecao(entry):
     """Le uma colecao inteira do Shopify (todos os produtos/cores) e devolve os itens
     prontos. Pula esgotados e kits/sets (por palavra-chave).
@@ -150,75 +237,59 @@ def expandir_colecao(entry):
             ["Produto 100% original {brand}", "Importado \u00b7 pronta entrega"])
         vistos = set()
         out = []
-        for page in range(1, 8):
-            try:
-                r = SESSION.get(f"{url}?limit=250&page={page}", timeout=40)
-                prods = r.json().get("products", [])
-            except Exception:  # noqa
-                prods = []
-            if not prods:
-                break
-            for prod in prods:
-                title = (prod.get("title") or "").strip()
-                tl = title.lower()
-                if not title or any(k in tl for k in skip):
-                    continue
-                if incl and not any(k in tl for k in incl):
-                    continue
-                vars_ = prod.get("variants", [])
-                if vars_ and not any(v.get("available", True) for v in vars_):
-                    continue  # esgotado -> pula
-                # preco em euro
-                if usa_json and vars_:
-                    try:
-                        eur = float(vars_[0].get("price") or 0)
-                    except Exception:  # noqa
-                        eur = default
-                else:
+        for prod in _shopify_products_robusto(url):
+            title = (prod.get("title") or "").strip()
+            tl = title.lower()
+            if not title or any(k in tl for k in skip):
+                continue
+            if incl and not any(k in tl for k in incl):
+                continue
+            vars_ = prod.get("variants", [])
+            if vars_ and not any(v.get("available", True) for v in vars_):
+                continue  # esgotado -> pula
+            # preco em euro
+            if usa_json and vars_:
+                try:
+                    eur = float(vars_[0].get("price") or 0)
+                except Exception:  # noqa
                     eur = default
-                    for k, v in pmap.items():
-                        if k in tl:
-                            eur = v; break
-                if not eur:
-                    continue
-                cor = _cor_do_produto(prod)
-                model = title
-                cor_sp = (" " + cor) if cor else ""
-                nome = f"{prefixo} {model}{cor_sp}".upper()
-                if nome in vistos:
-                    continue  # mesma modelo+cor ja adicionada (outra variante/material)
-                vistos.add(nome)
-                imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
-                ctx = {"model": model, "brand": brand, "cor": cor or "",
-                       "cor_sp": cor_sp}
-                out.append({
-                    "name": nome, "brand": brand, "marca_header": header, "secao": secao,
-                    "images": imgs, "color": cor or "\u00danico",
-                    "price_brl": round(eur * mult + add, 2),
-                    "descricao": desc_tpl.format(**ctx),
-                    "caimento_material": [b.format(**ctx) for b in caimento],
-                    "seo_title": seo_t_tpl.format(**ctx)[:70],
-                    "seo_description": seo_d_tpl.format(**ctx)[:160],
-                    "tags": tags + ([cor.lower()] if cor else []),
-                    "sizes": sizes, "category_id": entry["category_id"],
-                    "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
-                    "add_category_if_exists": entry.get("add_category_if_exists", False),
-                })
+            else:
+                eur = default
+                for k, v in pmap.items():
+                    if k in tl:
+                        eur = v; break
+            if not eur:
+                continue
+            cor = _cor_do_produto(prod)
+            model = title
+            cor_sp = (" " + cor) if cor else ""
+            nome = f"{prefixo} {model}{cor_sp}".upper()
+            if nome in vistos:
+                continue  # mesma modelo+cor ja adicionada (outra variante/material)
+            vistos.add(nome)
+            imgs = [i["src"].split("?")[0] for i in prod.get("images", [])][:5]
+            ctx = {"model": model, "brand": brand, "cor": cor or "", "cor_sp": cor_sp}
+            out.append({
+                "name": nome, "brand": brand, "marca_header": header, "secao": secao,
+                "images": imgs, "color": cor or "\u00danico",
+                "price_brl": round(eur * mult + add, 2),
+                "descricao": desc_tpl.format(**ctx),
+                "caimento_material": [b.format(**ctx) for b in caimento],
+                "seo_title": seo_t_tpl.format(**ctx)[:70],
+                "seo_description": seo_d_tpl.format(**ctx)[:160],
+                "tags": tags + ([cor.lower()] if cor else []),
+                "sizes": sizes, "category_id": entry["category_id"],
+                "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
+                "add_category_if_exists": entry.get("add_category_if_exists", False),
+            })
         return out
 
     # ---- modo legado (Rhode) ----
     pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
     default = entry.get("price_eur_default", 30)
     out = []
-    for page in range(1, 8):
-        try:
-            r = SESSION.get(f"{url}?limit=250&page={page}", timeout=40)
-            prods = r.json().get("products", [])
-        except Exception:  # noqa
-            prods = []
-        if not prods:
-            break
-        for prod in prods:
+    for prod in _shopify_products_robusto(url):
+        if True:
             title = (prod.get("title") or "").strip()
             tl = title.lower()
             if not title or any(k in tl for k in skip):
