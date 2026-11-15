@@ -237,6 +237,8 @@ def expandir_colecao(entry):
             ["Produto 100% original {brand}", "Importado \u00b7 pronta entrega"])
         vistos = set()
         out = []
+        ignora_esg = entry.get("ignore_sold_out", False)
+        _tot = _disp = 0
         for prod in _shopify_products_robusto(url):
             title = (prod.get("title") or "").strip()
             tl = title.lower()
@@ -244,9 +246,13 @@ def expandir_colecao(entry):
                 continue
             if incl and not any(k in tl for k in incl):
                 continue
+            _tot += 1
             vars_ = prod.get("variants", [])
-            if vars_ and not any(v.get("available", True) for v in vars_):
-                continue  # esgotado -> pula
+            disp = (not vars_) or any(v.get("available", True) for v in vars_)
+            if disp:
+                _disp += 1
+            if not disp and not ignora_esg:
+                continue  # esgotado -> pula (a menos que ignore_sold_out)
             # preco em euro
             if usa_json and vars_:
                 try:
@@ -282,6 +288,8 @@ def expandir_colecao(entry):
                 "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
                 "add_category_if_exists": entry.get("add_category_if_exists", False),
             })
+        print(f"    (disponibilidade: {_disp} em estoque de {_tot} no feed | "
+              f"ignore_sold_out={ignora_esg})")
         return out
 
     # ---- modo legado (Rhode) ----
