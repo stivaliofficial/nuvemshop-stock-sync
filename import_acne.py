@@ -125,6 +125,53 @@ def traduzir(texto, sl="en", tl="pt"):
     return out
 
 
+# ------------------------------------------------- traducao de tamanhos (BR)
+_TAM_LETRA = {
+    "xxs": "PP", "xs": "PP", "s": "P", "m": "M", "l": "G", "xl": "GG",
+    "xxl": "2GG", "2xl": "2GG", "xxxl": "3GG", "3xl": "3GG",
+    "xxxxl": "4GG", "4xl": "4GG",
+}
+
+
+def _traduz_tamanho(raw, mode):
+    """Traduz o tamanho do site para o padrao BR conforme o modo:
+      apparel    -> S/M/L/XL/XXL = P/M/G/GG/2GG
+      shoe_eu    -> BR = EU - 2  (37 EU -> 35 BR)
+      jeans_waist-> BR = cintura + 9 (25 -> 34, 27 -> 36, 28 -> 38)
+      none       -> mantem como esta."""
+    s = str(raw or "").strip()
+    if not s or s.lower() in ("default title", "title"):
+        return "Único"
+    if mode == "apparel":
+        return _TAM_LETRA.get(s.lower().replace(" ", ""), s.upper())
+    if mode == "shoe_eu":
+        m = re.search(r"\d+(?:[.,]5)?", s)
+        if m:
+            val = float(m.group().replace(",", ".")) - 2
+            return str(int(val)) if val == int(val) else str(val).replace(".0", "")
+        return s
+    if mode == "jeans_waist":
+        m = re.search(r"\d+", s)
+        if m:
+            return str(int(m.group()) + 9)
+        return s
+    return s
+
+
+def _size_pos(prod):
+    """Descobre em qual opcao (1,2,3) esta o tamanho. Se nao houver opcao chamada
+    'Size' mas houver varias variantes numa unica opcao, assume a opcao 1."""
+    opts = prod.get("options", [])
+    for idx, o in enumerate(opts, start=1):
+        nome = (o.get("name") if isinstance(o, dict) else str(o)) or ""
+        if nome.strip().lower() in ("size", "talla", "taille", "größe",
+                                    "grosse", "tamanho", "tamanhos", "size eu", "us size"):
+            return idx
+    if len(opts) == 1 and len(prod.get("variants", [])) > 1:
+        return 1
+    return None
+
+
 # vocabulario de cores p/ extrair a cor do handle/tags quando o titulo so traz o modelo
 _CORES = {
     "black": "Black", "brown": "Brown", "dark": "Dark", "red": "Red", "beige": "Beige",
@@ -237,11 +284,27 @@ def _shopify_products_robusto(colecao_url):
                 opts.append({"name": o.get("name", ""), "values": o.get("values", [])})
             else:
                 opts.append({"name": str(o), "values": []})
+        variants = []
+        for v in j.get("variants", []):
+            try:
+                eurv = float(v.get("price", 0)) / 100.0
+            except Exception:  # noqa
+                eurv = eur
+            vo = v.get("options") or []
+            variants.append({
+                "price": f"{eurv:.2f}", "available": v.get("available", True),
+                "title": v.get("title"),
+                "option1": vo[0] if len(vo) > 0 else v.get("option1"),
+                "option2": vo[1] if len(vo) > 1 else v.get("option2"),
+                "option3": vo[2] if len(vo) > 2 else v.get("option3"),
+            })
+        if not variants:
+            variants = [{"price": f"{eur:.2f}", "available": j.get("available", True)}]
         out.append({
             "title": j.get("title", ""), "handle": j.get("handle", h),
             "options": opts, "tags": j.get("tags", []),
             "body_html": j.get("description", ""),
-            "variants": [{"price": f"{eur:.2f}", "available": j.get("available", True)}],
+            "variants": variants,
             "images": [{"src": _norm_img(s)} for s in j.get("images", [])],
         })
     print(f"    (fallback .js: {len(out)} produto(s) montado(s) de {len(handles)} handle(s))")
@@ -269,6 +332,7 @@ def expandir_colecao(entry):
         pmap = {k.lower(): v for k, v in entry.get("price_eur_map", {}).items()}
         default = entry.get("price_eur_default", 0)
         sizes = entry.get("sizes", ["\u00danico"])
+        size_mode = entry.get("size_mode", "none")  # apparel|shoe_eu|jeans_waist|none
         brand = entry.get("brand", prefixo.title())
         header = entry.get("marca_header", prefixo.upper())
         secao = entry.get("secao", "DETALHES")
@@ -311,6 +375,23 @@ def expandir_colecao(entry):
                         eur = v; break
             if not eur:
                 continue
+            # tamanhos: monta a partir das variantes, traduz e pula numeracao esgotada
+            if size_mode != "none":
+                spos = _size_pos(prod)
+                if spos:
+                    sizes_out = []
+                    for v in vars_:
+                        if not ignora_esg and not v.get("available", True):
+                            continue  # numeracao esgotada -> fora
+                        tb = _traduz_tamanho(v.get(f"option{spos}"), size_mode)
+                        if tb and tb not in sizes_out:
+                            sizes_out.append(tb)
+                    if not sizes_out:
+                        continue  # todas as numeracoes esgotadas -> pula a peca
+                else:
+                    sizes_out = sizes
+            else:
+                sizes_out = sizes
             cor = _cor_do_produto(prod)
             model = title
             cor_sp = (" " + cor) if cor else ""
@@ -340,7 +421,7 @@ def expandir_colecao(entry):
                 "seo_title": seo_t_tpl.format(**ctx)[:70],
                 "seo_description": seo_d_tpl.format(**ctx)[:160],
                 "tags": tags + ([cor.lower()] if cor else []),
-                "sizes": sizes, "category_id": entry["category_id"],
+                "sizes": sizes_out, "category_id": entry["category_id"],
                 "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
                 "add_category_if_exists": entry.get("add_category_if_exists", False),
             })

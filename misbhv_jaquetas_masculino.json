@@ -1,0 +1,27 @@
+[
+  {
+    "shopify_collection": "https://misbhv.com/collections/men-outerwear/products.json",
+    "name_prefix": "MISBHV",
+    "brand": "MISBHV",
+    "marca_header": "MISBHV",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2577,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "apparel",
+    "category_id": 42125545,
+    "weight": 1.2,
+    "stock": 1,
+    "tags": ["misbhv", "jaqueta", "jaquetas", "masculino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da MISBHV — peça masculina original importada, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: MISBHV",
+      "Importado · produto 100% original MISBHV"
+    ],
+    "seo_title_tpl": "MISBHV {model}{cor_sp} | Jaqueta Masculina",
+    "seo_description_tpl": "Jaqueta {model}{cor_sp} da MISBHV masculina. Streetwear polonês original, importado, em até 12x no cartão. Compre na Stivali."
+  }
+]
