@@ -14,7 +14,7 @@
     "size_mode": "apparel",
     "imagens_por_url": true,
     "cor_da_pagina": true,
-    "debug_cor": true,
+    "cor_default": "Black",
     "color_overrides": {},
     "limit": 24,
     "category_id": 42125546,

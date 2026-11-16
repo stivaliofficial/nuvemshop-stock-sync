@@ -455,11 +455,12 @@ def expandir_colecao(entry):
             _elig += 1
             if _elig <= pular_n:
                 continue
-            # cor: override manual (por codigo/handle) tem prioridade; depois deteccao
+            # cor: override manual (por codigo OU nome da peca) tem prioridade; depois deteccao
             cor = ""
             h_low = (prod.get("handle") or "").lower()
+            alvo_ov = h_low + " " + tl  # casa por codigo do handle ou por palavra do nome
             for chave, val in entry.get("color_overrides", {}).items():
-                if chave.lower() in h_low:
+                if chave.lower() in alvo_ov:
                     cor = val; break
             if not cor:
                 cor = _cor_do_produto(prod)
@@ -472,6 +473,8 @@ def expandir_colecao(entry):
                 _im0 = (_ims[0].get("src") if _ims and isinstance(_ims[0], dict) else "")
                 print(f"      [debug cor] {prod.get('handle')} | type={prod.get('product_type')!r}"
                       f" | tags={prod.get('tags')!r} | img={_im0}")
+            if not cor:
+                cor = entry.get("cor_default", "")  # cor padrao quando nao da p/ detectar
             model = title
             cor_sp = (" " + cor) if cor else ""
             # nao repete o prefixo se o titulo da peca ja comeca com a marca
