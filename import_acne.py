@@ -231,7 +231,10 @@ def _so_cores_conhecidas(texto):
     return " ".join(_CORES[t] for t in cor) if cor else ""
 
 
-def _cor_da_pagina(url_produto):
+_DBG_COR = {"n": 0}
+
+
+def _cor_da_pagina(url_produto, debug=False):
     """Ultimo recurso: abre a pagina do produto e tenta achar a cor (metafield
     que nao vem no products.json). So aceita nomes de cor REAIS (via _CORES),
     descartando variaveis de tema. Devolve '' se nao achar (nunca inventa)."""
@@ -240,16 +243,22 @@ def _cor_da_pagina(url_produto):
     except Exception:  # noqa
         return ""
     cands = []
-    for m in re.finditer(r'Colou?r\s*[:\-]\s*([A-Za-z][A-Za-z /]{1,24})', html):
-        cands.append(m.group(1))
-    for m in re.finditer(r'"colou?r"\s*:\s*"([^"]{2,40})"', html, re.I):
-        cands.append(m.group(1))
-    for m in re.finditer(r'(?i)\b(?:colou?r|cor)\b[^<>{}\"]{0,20}?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', html):
-        cands.append(m.group(1))
+    cands += re.findall(r'Colou?r\s*[:\-]\s*([A-Za-z][A-Za-z /]{1,24})', html)
+    cands += re.findall(r'"colou?r"\s*:\s*"([^"]{2,40})"', html, re.I)
+    cands += re.findall(r'"colou?r"[^{}]{0,60}?"value"\s*:\s*"([^"]{2,40})"', html, re.I)
+    cands += re.findall(r'data-colou?r=["\']([A-Za-z][A-Za-z /]{1,24})', html, re.I)
+    cands += re.findall(r'aria-label=["\']\s*Colou?r:?\s*([A-Za-z][A-Za-z /]{1,24})', html, re.I)
+    cands += re.findall(r'(?i)\b(?:colou?r|cor)\b[^<>{}\"]{0,20}?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', html)
     for c in cands:
         cor = _so_cores_conhecidas(c)
         if cor:
             return cor
+    if debug and _DBG_COR["n"] < 3:
+        _DBG_COR["n"] += 1
+        low = html.lower()
+        i = low.find("colo")
+        snip = html[max(0, i - 25):i + 110].replace("\n", " ") if i >= 0 else "(sem 'colo' na pagina)"
+        print(f"      [debug cor] {url_produto.rsplit('/', 1)[-1]}: {snip!r}")
     return ""
 
 
@@ -456,7 +465,8 @@ def expandir_colecao(entry):
                 cor = _cor_do_produto(prod)
             if not cor and entry.get("cor_da_pagina") and prod.get("handle"):
                 dominio = "https://" + url.split("/")[2]
-                cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}")
+                cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}",
+                                     debug=entry.get("debug_cor", False))
             model = title
             cor_sp = (" " + cor) if cor else ""
             # nao repete o prefixo se o titulo da peca ja comeca com a marca
