@@ -480,6 +480,7 @@ def expandir_colecao(entry):
                 "sizes": sizes_out, "category_id": entry["category_id"],
                 "weight": entry.get("weight", 0.6), "stock": entry.get("stock", 1),
                 "add_category_if_exists": entry.get("add_category_if_exists", False),
+                "imagens_por_url": entry.get("imagens_por_url", False),
             })
         print(f"    (disponibilidade: {_disp} em estoque de {_tot} no feed | "
               f"ignore_sold_out={ignora_esg})")
@@ -704,9 +705,15 @@ def monta_descricao(p):
             f"<h2><strong>{secao}</strong></h2><p>{bullets}</p>" + SELO)
 
 
-def _montar_imagens(imgs):
+def _montar_imagens(imgs, por_url=False):
+    """Monta as imagens do produto. por_url=True envia o LINK (a Nuvemshop baixa do
+    CDN) -> pedido pequeno, evita 413. por_url=False embute o arquivo em base64
+    (necessario so quando a URL e bloqueada por filtro, ex: Acne '/ad/')."""
     out = []
     for u in imgs:
+        if por_url:
+            out.append({"src": u, "position": len(out) + 1})
+            continue
         b64, nome = baixar_imagem(u)
         if b64:
             out.append({"attachment": b64, "filename": nome, "position": len(out) + 1})
@@ -733,7 +740,7 @@ def monta_payload(p, imgs):
         "seo_description": {"pt": p["seo_description"]},
         "tags": ", ".join(p.get("tags", [])),
         "variants": variants,
-        "images": _montar_imagens(imgs),
+        "images": _montar_imagens(imgs, p.get("imagens_por_url", False)),
     }
 
 

@@ -12,6 +12,7 @@
     "descricao_from_source": true,
     "traduzir": true,
     "size_mode": "apparel",
+    "imagens_por_url": true,
     "cor_da_pagina": true,
     "color_overrides": {
       "261u135": "Beige",
