@@ -465,8 +465,13 @@ def expandir_colecao(entry):
                 cor = _cor_do_produto(prod)
             if not cor and entry.get("cor_da_pagina") and prod.get("handle"):
                 dominio = "https://" + url.split("/")[2]
-                cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}",
-                                     debug=entry.get("debug_cor", False))
+                cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}")
+            if not cor and entry.get("debug_cor") and _DBG_COR["n"] < 4:
+                _DBG_COR["n"] += 1
+                _ims = prod.get("images") or []
+                _im0 = (_ims[0].get("src") if _ims and isinstance(_ims[0], dict) else "")
+                print(f"      [debug cor] {prod.get('handle')} | type={prod.get('product_type')!r}"
+                      f" | tags={prod.get('tags')!r} | img={_im0}")
             model = title
             cor_sp = (" " + cor) if cor else ""
             # nao repete o prefixo se o titulo da peca ja comeca com a marca
