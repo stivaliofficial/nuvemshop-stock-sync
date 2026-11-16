@@ -393,8 +393,12 @@ def expandir_colecao(entry):
         vistos = set()
         out = []
         ignora_esg = entry.get("ignore_sold_out", False)
-        _tot = _disp = 0
+        limite = entry.get("limit")              # traz no maximo N pecas (lote)
+        pular_n = entry.get("skip_primeiros", 0)  # pula as N primeiras (proximo lote)
+        _tot = _disp = _elig = 0
         for prod in _shopify_products_robusto(url):
+            if limite and len(out) >= limite:
+                break
             title = (prod.get("title") or "").strip()
             tl = title.lower()
             if not title or any(k in tl for k in skip):
@@ -438,6 +442,10 @@ def expandir_colecao(entry):
                     sizes_out = sizes
             else:
                 sizes_out = sizes
+            # controle de lote: pula as N primeiras pecas elegiveis (proximo lote)
+            _elig += 1
+            if _elig <= pular_n:
+                continue
             # cor: override manual (por codigo/handle) tem prioridade; depois deteccao
             cor = ""
             h_low = (prod.get("handle") or "").lower()
