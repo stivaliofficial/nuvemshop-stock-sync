@@ -214,6 +214,12 @@ def _cor_do_produto(prod):
     toks = [w for w in re.split(r"[\s\-]+", (prod.get("title") or "").lower()) if w in _CORES]
     if toks:
         return " ".join(_CORES[w] for w in toks)
+    # 5) nome do arquivo das imagens (ex .../261U139-BLACK-1.jpg)
+    for im in prod.get("images", []) or []:
+        src = (im.get("src") if isinstance(im, dict) else str(im)) or ""
+        toks = [w for w in re.split(r"[\s/\-_.]+", src.lower()) if w in _CORES]
+        if toks:
+            return " ".join(dict.fromkeys(_CORES[w] for w in toks))
     return ""
 
 
@@ -432,7 +438,14 @@ def expandir_colecao(entry):
                     sizes_out = sizes
             else:
                 sizes_out = sizes
-            cor = _cor_do_produto(prod)
+            # cor: override manual (por codigo/handle) tem prioridade; depois deteccao
+            cor = ""
+            h_low = (prod.get("handle") or "").lower()
+            for chave, val in entry.get("color_overrides", {}).items():
+                if chave.lower() in h_low:
+                    cor = val; break
+            if not cor:
+                cor = _cor_do_produto(prod)
             if not cor and entry.get("cor_da_pagina") and prod.get("handle"):
                 dominio = "https://" + url.split("/")[2]
                 cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}")
