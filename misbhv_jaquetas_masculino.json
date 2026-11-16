@@ -12,6 +12,7 @@
     "descricao_from_source": true,
     "traduzir": true,
     "size_mode": "apparel",
+    "cor_da_pagina": true,
     "category_id": 42125545,
     "weight": 1.2,
     "stock": 1,

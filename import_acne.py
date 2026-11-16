@@ -204,6 +204,28 @@ def _cor_do_produto(prod):
     toks = [w for w in (prod.get("handle") or "").lower().split("-") if w in _CORES]
     if toks:
         return " ".join(_CORES[w] for w in toks)
+    # 4) titulo (ex 'Austin Grime Blue Bomber')
+    toks = [w for w in re.split(r"[\s\-]+", (prod.get("title") or "").lower()) if w in _CORES]
+    if toks:
+        return " ".join(_CORES[w] for w in toks)
+    return ""
+
+
+def _cor_da_pagina(url_produto):
+    """Ultimo recurso: abre a pagina do produto e tenta achar a cor (metafield
+    que nao vem no products.json). Procura em JSON-LD/JSON 'color' e no rotulo
+    'Colour: X'. Devolve '' se nao achar (nunca inventa)."""
+    try:
+        html = SESSION.get(url_produto, timeout=30).text
+    except Exception:  # noqa
+        return ""
+    for m in re.finditer(r'"colou?r"\s*:\s*"([^"]{2,30})"', html, re.I):
+        val = m.group(1).strip()
+        if val and val.lower() not in ("default", "", "n/a"):
+            return val.title()
+    m = re.search(r'Colou?r\s*[:\-]\s*([A-Za-z][A-Za-z /]{1,24})', html)
+    if m:
+        return m.group(1).strip().title()
     return ""
 
 
@@ -393,6 +415,9 @@ def expandir_colecao(entry):
             else:
                 sizes_out = sizes
             cor = _cor_do_produto(prod)
+            if not cor and entry.get("cor_da_pagina") and prod.get("handle"):
+                dominio = "https://" + url.split("/")[2]
+                cor = _cor_da_pagina(f"{dominio}/products/{prod['handle']}")
             model = title
             cor_sp = (" " + cor) if cor else ""
             # nao repete o prefixo se o titulo da peca ja comeca com a marca
@@ -713,7 +738,8 @@ def main():
     for i, p in enumerate(produtos, 1):
         nome = p["name"]
         mpn = p.get("mpn", "")
-        print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})")
+        _tam = ",".join(str(t) for t in p.get("sizes", []))
+        print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})  [tam: {_tam}]")
         if p.get("shopify_url") and not p.get("images"):
             if not shopify_disponivel(p["shopify_url"]):
                 print("    esgotado na Rhode -> pulando"); pulados += 1; continue
