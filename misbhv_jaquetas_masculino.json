@@ -13,6 +13,14 @@
     "traduzir": true,
     "size_mode": "apparel",
     "cor_da_pagina": true,
+    "color_overrides": {
+      "261u135": "Beige",
+      "261u107": "Blue",
+      "261u139": "Black",
+      "261u140": "Black",
+      "261u158": "Black",
+      "261u152": "Black"
+    },
     "category_id": 42125545,
     "weight": 1.2,
     "stock": 1,
