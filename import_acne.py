@@ -181,6 +181,12 @@ _CORES = {
     "ecru": "Ecru", "chocolate": "Chocolate", "taupe": "Taupe", "ivory": "Ivory",
     "orange": "Orange", "yellow": "Yellow", "purple": "Purple", "sand": "Sand",
     "olive": "Olive", "nude": "Nude", "mocha": "Mocha", "bordeaux": "Bordeaux",
+    "charcoal": "Charcoal", "stone": "Stone", "sage": "Sage", "rust": "Rust",
+    "wine": "Wine", "teal": "Teal", "maroon": "Maroon", "aqua": "Aqua",
+    "mint": "Mint", "coral": "Coral", "lilac": "Lilac", "mustard": "Mustard",
+    "denim": "Denim", "indigo": "Indigo", "plum": "Plum", "peach": "Peach",
+    "turquoise": "Turquoise", "emerald": "Emerald", "bronze": "Bronze",
+    "ecru": "Ecru", "offwhite": "Off White",
 }
 
 
@@ -211,21 +217,33 @@ def _cor_do_produto(prod):
     return ""
 
 
+def _so_cores_conhecidas(texto):
+    """Devolve a cor so se o texto contiver palavra(s) de cor conhecida(s).
+    Assim descartamos lixo de tema tipo 'defaultNegativePercentage'."""
+    toks = [w for w in re.split(r"[\s/\-_]+", (texto or "").lower()) if w]
+    cor = [t for t in toks if t in _CORES]
+    return " ".join(_CORES[t] for t in cor) if cor else ""
+
+
 def _cor_da_pagina(url_produto):
     """Ultimo recurso: abre a pagina do produto e tenta achar a cor (metafield
-    que nao vem no products.json). Procura em JSON-LD/JSON 'color' e no rotulo
-    'Colour: X'. Devolve '' se nao achar (nunca inventa)."""
+    que nao vem no products.json). So aceita nomes de cor REAIS (via _CORES),
+    descartando variaveis de tema. Devolve '' se nao achar (nunca inventa)."""
     try:
         html = SESSION.get(url_produto, timeout=30).text
     except Exception:  # noqa
         return ""
-    for m in re.finditer(r'"colou?r"\s*:\s*"([^"]{2,30})"', html, re.I):
-        val = m.group(1).strip()
-        if val and val.lower() not in ("default", "", "n/a"):
-            return val.title()
-    m = re.search(r'Colou?r\s*[:\-]\s*([A-Za-z][A-Za-z /]{1,24})', html)
-    if m:
-        return m.group(1).strip().title()
+    cands = []
+    for m in re.finditer(r'Colou?r\s*[:\-]\s*([A-Za-z][A-Za-z /]{1,24})', html):
+        cands.append(m.group(1))
+    for m in re.finditer(r'"colou?r"\s*:\s*"([^"]{2,40})"', html, re.I):
+        cands.append(m.group(1))
+    for m in re.finditer(r'(?i)\b(?:colou?r|cor)\b[^<>{}\"]{0,20}?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', html):
+        cands.append(m.group(1))
+    for c in cands:
+        cor = _so_cores_conhecidas(c)
+        if cor:
+            return cor
     return ""
 
 
