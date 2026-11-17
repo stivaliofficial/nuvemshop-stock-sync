@@ -345,9 +345,14 @@ def _shopify_products_robusto(colecao_url):
                 eurv = float(v.get("price", 0)) / 100.0
             except Exception:  # noqa
                 eurv = eur
+            try:
+                cheio = float(v.get("compare_at_price") or 0) / 100.0
+            except Exception:  # noqa
+                cheio = 0
             vo = v.get("options") or []
             variants.append({
                 "price": f"{eurv:.2f}", "available": v.get("available", True),
+                "compare_at_price": (f"{cheio:.2f}" if cheio else None),
                 "title": v.get("title"),
                 "option1": vo[0] if len(vo) > 0 else v.get("option1"),
                 "option2": vo[1] if len(vo) > 1 else v.get("option2"),
@@ -421,10 +426,14 @@ def expandir_colecao(entry):
                 _disp += 1
             if not disp and not ignora_esg:
                 continue  # esgotado -> pula (a menos que ignore_sold_out)
-            # preco em euro
+            # preco em euro: usa o preco CHEIO (compare_at_price) quando houver
+            # desconto; senao o preco normal. Pega a 1a variante disponivel.
             if usa_json and vars_:
+                v0 = next((v for v in vars_ if v.get("available", True)), vars_[0])
                 try:
-                    eur = float(vars_[0].get("price") or 0)
+                    preco = float(v0.get("price") or 0)
+                    cheio = float(v0.get("compare_at_price") or 0)
+                    eur = cheio if cheio > preco else preco
                 except Exception:  # noqa
                     eur = default
             else:
