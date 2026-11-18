@@ -133,11 +133,20 @@ _TAM_LETRA = {
 }
 
 
+# conversao polegada (cintura) -> numeracao BR de calcas (BR usa so pares)
+_JEANS_BR = {
+    24: "34", 25: "34", 26: "36", 27: "36", 28: "38", 29: "38",
+    30: "40", 31: "40", 32: "42", 33: "42", 34: "44", 35: "44",
+    36: "46", 37: "46", 38: "48", 39: "48", 40: "50", 41: "50", 42: "52",
+}
+
+
 def _traduz_tamanho(raw, mode):
     """Traduz o tamanho do site para o padrao BR conforme o modo:
       apparel    -> S/M/L/XL/XXL = P/M/G/GG/2GG
       shoe_eu    -> BR = EU - 2  (37 EU -> 35 BR)
-      jeans_waist-> BR = cintura + 9 (25 -> 34, 27 -> 36, 28 -> 38)
+      jeans_waist-> polegada -> BR por faixa (25->34, 27->36, 28->38);
+                    se vier letra (jogger), cai no mapa apparel.
       none       -> mantem como esta."""
     s = str(raw or "").strip()
     if not s or s.lower() in ("default title", "title"):
@@ -153,8 +162,9 @@ def _traduz_tamanho(raw, mode):
     if mode == "jeans_waist":
         m = re.search(r"\d+", s)
         if m:
-            return str(int(m.group()) + 9)
-        return s
+            n = int(m.group())
+            return _JEANS_BR.get(n, str(n + 9))  # fora da tabela: +9 como aproximacao
+        return _TAM_LETRA.get(s.lower().replace(" ", ""), s.upper())  # jogger S/M/L
     return s
 
 

@@ -1,0 +1,31 @@
+[
+  {
+    "shopify_collection": "https://misbhv.com/collections/men-bottoms/products.json",
+    "name_prefix": "MISBHV",
+    "brand": "MISBHV",
+    "marca_header": "MISBHV",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2600,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "jeans_waist",
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "Black",
+    "color_overrides": {},
+    "category_id": 42125548,
+    "weight": 0.9,
+    "stock": 1,
+    "tags": ["misbhv", "calca", "calcas", "masculino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da MISBHV — peça masculina original importada, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: MISBHV",
+      "Importado · produto 100% original MISBHV"
+    ],
+    "seo_title_tpl": "MISBHV {model}{cor_sp} | Calça Masculina",
+    "seo_description_tpl": "Calça {model}{cor_sp} da MISBHV masculina. Streetwear polonês original, importado, em até 12x no cartão. Compre na Stivali."
+  }
+]
