@@ -1,0 +1,31 @@
+[
+  {
+    "shopify_collection": "https://misbhv.com/collections/women-t-shirts-tops/products.json",
+    "name_prefix": "MISBHV",
+    "brand": "MISBHV",
+    "marca_header": "MISBHV",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2400,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "apparel",
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "Black",
+    "color_overrides": {},
+    "category_id": 42197762,
+    "weight": 0.3,
+    "stock": 1,
+    "tags": ["misbhv", "camiseta", "camisetas", "top", "feminino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da MISBHV — peça feminina original importada, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: MISBHV",
+      "Importado · produto 100% original MISBHV"
+    ],
+    "seo_title_tpl": "MISBHV {model}{cor_sp} | Camiseta Feminina",
+    "seo_description_tpl": "Camiseta {model}{cor_sp} da MISBHV feminina. Streetwear polonês original, importado, em até 12x no cartão. Compre na Stivali."
+  }
+]
