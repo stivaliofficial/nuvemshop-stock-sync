@@ -83,6 +83,12 @@ def extrair_fotos(acne_url, mpn, max_fotos=6):
 
 
 # ------------------------------------------------- descricao oficial + traducao
+def _handleize(s):
+    """Converte um texto para a forma de handle do Shopify (minusculo, nao-alfanumerico
+    vira '-'), para casar tags como 'Gender: Men' com o filtro de URL 'gender-men'."""
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", str(s).lower())).strip("-")
+
+
 def _html_para_texto(html):
     """Converte o body_html do produto (descricao oficial da marca) em texto limpo,
     preservando quebras de linha e marcadores de lista."""
@@ -441,6 +447,19 @@ def expandir_colecao(entry):
             inc_h = [k.lower() for k in entry.get("include_handles", [])]
             if inc_h and not any(k in (prod.get("handle") or "").lower() for k in inc_h):
                 continue
+            # filtro por tag (ex genero 'gender-men'); compara na forma handleizada
+            inc_t = [_handleize(k) for k in entry.get("include_tags", [])]
+            if inc_t:
+                tags_h = [_handleize(str(t)) for t in (prod.get("tags") or [])]
+                if not any(any(k in th for th in tags_h) for k in inc_t):
+                    continue
+            if entry.get("debug_tags") and _DBG_COR["n"] < 8:
+                _DBG_COR["n"] += 1
+                _v0 = (prod.get("variants") or [{}])[0]
+                print(f"      [dbg] {prod.get('handle')} | type={prod.get('product_type')!r}"
+                      f" | tags={prod.get('tags')!r}"
+                      f" | opts={[(o.get('name') if isinstance(o, dict) else o) for o in prod.get('options', [])]}"
+                      f" | v0 avail={_v0.get('available')} price={_v0.get('price')} cmp={_v0.get('compare_at_price')}")
             _tot += 1
             vars_ = prod.get("variants", [])
             disp = (not vars_) or any(v.get("available", True) for v in vars_)
