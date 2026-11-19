@@ -157,6 +157,9 @@ def _traduz_tamanho(raw, mode):
     s = str(raw or "").strip()
     if not s or s.lower() in ("default title", "title"):
         return "Único"
+    if s.lower().replace(" ", "") in ("os", "onesize", "unique", "tu", "u",
+                                      "unico", "único", "onesizefitsall", "einheitsgröße"):
+        return "Único"
     if mode == "apparel":
         return _letra_br(s)
     if mode == "shoe_eu":

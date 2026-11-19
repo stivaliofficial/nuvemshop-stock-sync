@@ -1,0 +1,32 @@
+[
+  {
+    "shopify_collection": "https://misbhv.com/collections/women-accessories/products.json",
+    "name_prefix": "MISBHV",
+    "brand": "MISBHV",
+    "marca_header": "MISBHV",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2300,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "apparel",
+    "sizes": ["Único"],
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "Black",
+    "color_overrides": {},
+    "category_id": 42206876,
+    "weight": 0.3,
+    "stock": 1,
+    "tags": ["misbhv", "acessorio", "acessorios", "feminino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da MISBHV — acessório feminino original importado, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: MISBHV",
+      "Importado · produto 100% original MISBHV"
+    ],
+    "seo_title_tpl": "MISBHV {model}{cor_sp} | Acessório Feminino",
+    "seo_description_tpl": "{model}{cor_sp} da MISBHV. Acessório feminino original, importado, em até 12x no cartão. Compre na Stivali."
+  }
+]
