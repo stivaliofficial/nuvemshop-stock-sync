@@ -435,6 +435,9 @@ def expandir_colecao(entry):
                 continue
             if incl and not any(k in tl for k in incl):
                 continue
+            inc_h = [k.lower() for k in entry.get("include_handles", [])]
+            if inc_h and not any(k in (prod.get("handle") or "").lower() for k in inc_h):
+                continue
             _tot += 1
             vars_ = prod.get("variants", [])
             disp = (not vars_) or any(v.get("available", True) for v in vars_)
