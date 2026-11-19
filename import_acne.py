@@ -141,6 +141,12 @@ _JEANS_BR = {
 }
 
 
+def _letra_br(s):
+    """Traduz tamanho em letra para BR, lidando com combinados tipo 'XS/S' -> 'PP/P'."""
+    partes = [p.strip() for p in s.split("/")] if "/" in s else [s]
+    return "/".join(_TAM_LETRA.get(p.lower().replace(" ", ""), p.upper()) for p in partes)
+
+
 def _traduz_tamanho(raw, mode):
     """Traduz o tamanho do site para o padrao BR conforme o modo:
       apparel    -> S/M/L/XL/XXL = P/M/G/GG/2GG
@@ -152,7 +158,7 @@ def _traduz_tamanho(raw, mode):
     if not s or s.lower() in ("default title", "title"):
         return "Único"
     if mode == "apparel":
-        return _TAM_LETRA.get(s.lower().replace(" ", ""), s.upper())
+        return _letra_br(s)
     if mode == "shoe_eu":
         m = re.search(r"\d+(?:[.,]5)?", s)
         if m:
@@ -164,7 +170,7 @@ def _traduz_tamanho(raw, mode):
         if m:
             n = int(m.group())
             return _JEANS_BR.get(n, str(n + 9))  # fora da tabela: +9 como aproximacao
-        return _TAM_LETRA.get(s.lower().replace(" ", ""), s.upper())  # jogger S/M/L
+        return _letra_br(s)  # jogger S/M/L (e combinados)
     return s
 
 
