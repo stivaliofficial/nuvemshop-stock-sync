@@ -175,16 +175,21 @@ def _traduz_tamanho(raw, mode):
             return str(int(val)) if val == int(val) else str(val).replace(".0", "")
         return s
     if mode == "shoe_us":
-        # sandalia/chinelo em letra (S/M/L) -> P/M/G
-        if s.lower().replace(" ", "") in _TAM_LETRA or "/" in s:
+        # 1) tamanho com rotulo US (ex 'US 9.5/UK 8.5') -> pega o numero US
+        mus = re.search(r"us\s*(\d+(?:[.,]5)?)", s, re.I)
+        if mus:
+            br = float(mus.group(1).replace(",", ".")) + 31
+            return str(int(br)) if br == int(br) else str(br)
+        # 2) sandalia/chinelo so em letra (S/M/L, XS/S) -> P/M/G
+        if not re.search(r"\d", s):
             return _letra_br(s)
+        # 3) numero puro: US (<=20) -> +31 ; mm (Crocs) -> 'mm - BR'
         m = re.search(r"\d+(?:[.,]5)?", s)
         if m:
             val = float(m.group().replace(",", "."))
-            if val <= 20:  # US (masculino) -> BR = US + 31 (meia-numeracao com ponto: 39.5)
+            if val <= 20:
                 br = val + 31
                 return str(int(br)) if br == int(br) else str(br)
-            # numeracao em mm (Crocs/JP): BR ~= mm/10 + 13 -> formato "mm - BR"
             br = round(val / 10) + 13
             return f"{int(val)} - {br}"
         return s
