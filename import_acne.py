@@ -174,6 +174,13 @@ def _traduz_tamanho(raw, mode):
             val = float(m.group().replace(",", ".")) - 2
             return str(int(val)) if val == int(val) else str(val).replace(".0", "")
         return s
+    if mode == "shoe_us":
+        # US (masculino) -> BR: BR = US + 31 (mantem meia-numeracao)
+        m = re.search(r"\d+(?:[.,]5)?", s)
+        if m:
+            val = float(m.group().replace(",", ".")) + 31
+            return str(int(val)) if val == int(val) else str(val).replace(".", ",")
+        return s
     if mode == "jeans_waist":
         m = re.search(r"\d+", s)
         if m:

@@ -1,0 +1,34 @@
+[
+  {
+    "shopify_collection": "https://eu.bape.com/collections/category-clothing-footwear/products.json",
+    "include_tags": ["gender-men"],
+    "name_prefix": "BAPE",
+    "brand": "BAPE",
+    "marca_header": "BAPE",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 3500,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "shoe_us",
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "",
+    "color_overrides": {},
+    "limit": 30,
+    "category_id": 42224633,
+    "weight": 1.3,
+    "stock": 1,
+    "tags": ["bape", "a bathing ape", "calcado", "calcados", "tenis", "bapesta", "masculino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da BAPE (A Bathing Ape) — calçado masculino original importado, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: BAPE (A Bathing Ape)",
+      "Numeração convertida para o padrão BR",
+      "Importado · produto 100% original BAPE"
+    ],
+    "seo_title_tpl": "BAPE {model}{cor_sp} | Tênis Masculino",
+    "seo_description_tpl": "Tênis {model}{cor_sp} da BAPE (A Bathing Ape) masculino. Streetwear japonês original, importado, em até 12x no cartão. Compre na Stivali."
+  }
+]
