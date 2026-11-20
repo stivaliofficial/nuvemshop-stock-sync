@@ -1,0 +1,44 @@
+[
+  {
+    "shopify_collection": "https://eu.bape.com/collections/category-clothing-t-shirt/products.json",
+    "include_tags": [
+      "gender-men"
+    ],
+    "name_prefix": "BAPE",
+    "brand": "BAPE",
+    "marca_header": "BAPE",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2200,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "apparel",
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "",
+    "color_overrides": {},
+    "limit": 30,
+    "category_id": 42208184,
+    "weight": 0.3,
+    "stock": 1,
+    "tags": [
+      "bape",
+      "a bathing ape",
+      "camiseta",
+      "camisetas",
+      "masculino",
+      "streetwear",
+      "importado"
+    ],
+    "descricao_tpl": "{model}{cor_sp} da BAPE (A Bathing Ape) — peça masculina original importada, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: BAPE (A Bathing Ape)",
+      "Importado · produto 100% original BAPE"
+    ],
+    "seo_title_tpl": "BAPE {model}{cor_sp} | Camiseta Masculina",
+    "seo_description_tpl": "Camiseta {model}{cor_sp} da BAPE (A Bathing Ape) masculina. Streetwear japonês original, importado, em até 12x no cartão. Compre na Stivali.",
+    "skip_primeiros": 30
+  }
+]
