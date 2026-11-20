@@ -175,11 +175,18 @@ def _traduz_tamanho(raw, mode):
             return str(int(val)) if val == int(val) else str(val).replace(".0", "")
         return s
     if mode == "shoe_us":
-        # US (masculino) -> BR: BR = US + 31 (mantem meia-numeracao)
+        # sandalia/chinelo em letra (S/M/L) -> P/M/G
+        if s.lower().replace(" ", "") in _TAM_LETRA or "/" in s:
+            return _letra_br(s)
         m = re.search(r"\d+(?:[.,]5)?", s)
         if m:
-            val = float(m.group().replace(",", ".")) + 31
-            return str(int(val)) if val == int(val) else str(val).replace(".", ",")
+            val = float(m.group().replace(",", "."))
+            if val <= 20:  # US (masculino) -> BR = US + 31 (meia-numeracao com ponto: 39.5)
+                br = val + 31
+                return str(int(br)) if br == int(br) else str(br)
+            # numeracao em mm (Crocs/JP): BR ~= mm/10 + 13 -> formato "mm - BR"
+            br = round(val / 10) + 13
+            return f"{int(val)} - {br}"
         return s
     if mode == "jeans_waist":
         m = re.search(r"\d+", s)
@@ -859,7 +866,7 @@ def main():
     for i, p in enumerate(produtos, 1):
         nome = p["name"]
         mpn = p.get("mpn", "")
-        _tam = ",".join(str(t) for t in p.get("sizes", []))
+        _tam = " | ".join(str(t) for t in p.get("sizes", []))
         print(f"[{i}/{len(produtos)}] {nome}  ->  R$ {p['price_brl']:.0f}  ({p['color']})  [tam: {_tam}]")
         if p.get("shopify_url") and not p.get("images"):
             if not shopify_disponivel(p["shopify_url"]):
