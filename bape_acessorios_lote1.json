@@ -1,0 +1,55 @@
+[
+  {
+    "shopify_collection": "https://eu.bape.com/collections/category-accessories-all/products.json",
+    "skip_keywords": [
+      "bag",
+      "backpack",
+      "daypack",
+      "rucksack",
+      "sacoche",
+      "pouch",
+      "duffle",
+      "luggage",
+      "tote"
+    ],
+    "name_prefix": "BAPE",
+    "brand": "BAPE",
+    "marca_header": "BAPE",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2800,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "apparel",
+    "sizes": [
+      "Único"
+    ],
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "",
+    "color_overrides": {},
+    "add_category_if_exists": true,
+    "category_id": 42226835,
+    "weight": 0.3,
+    "stock": 1,
+    "tags": [
+      "bape",
+      "a bathing ape",
+      "acessorio",
+      "acessorios",
+      "streetwear",
+      "importado"
+    ],
+    "descricao_tpl": "{model}{cor_sp} da BAPE (A Bathing Ape) — acessório original importado, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: BAPE (A Bathing Ape)",
+      "Importado · produto 100% original BAPE"
+    ],
+    "seo_title_tpl": "BAPE {model}{cor_sp} | Acessório Original",
+    "seo_description_tpl": "{model}{cor_sp} da BAPE (A Bathing Ape). Acessório original, importado, em até 12x no cartão. Compre na Stivali.",
+    "skip_primeiros": 0,
+    "limit": 46
+  }
+]
