@@ -223,23 +223,25 @@ def _traduz_tamanho(raw, mode):
             val = float(m.group().replace(",", ".")) - 2
             return str(int(val)) if val == int(val) else str(val).replace(".0", "")
         return s
-    if mode == "shoe_us":
+    if mode in ("shoe_us", "shoe_us_f"):
+        off = 29 if mode == "shoe_us_f" else 31  # feminino US+29, masculino US+31
+        mm_off = 11 if mode == "shoe_us_f" else 13
         # 1) tamanho com rotulo US (ex 'US 9.5/UK 8.5') -> pega o numero US
         mus = re.search(r"us\s*(\d+(?:[.,]5)?)", s, re.I)
         if mus:
-            br = float(mus.group(1).replace(",", ".")) + 31
+            br = float(mus.group(1).replace(",", ".")) + off
             return str(int(br)) if br == int(br) else str(br)
         # 2) sandalia/chinelo so em letra (S/M/L, XS/S) -> P/M/G
         if not re.search(r"\d", s):
             return _letra_br(s)
-        # 3) numero puro: US (<=20) -> +31 ; mm (Crocs) -> 'mm - BR'
+        # 3) numero puro: US (<=20) -> +off ; mm (Crocs) -> 'mm - BR'
         m = re.search(r"\d+(?:[.,]5)?", s)
         if m:
             val = float(m.group().replace(",", "."))
             if val <= 20:
-                br = val + 31
+                br = val + off
                 return str(int(br)) if br == int(br) else str(br)
-            br = round(val / 10) + 13
+            br = round(val / 10) + mm_off
             return f"{int(val)} - {br}"
         return s
     if mode == "jeans_waist":
