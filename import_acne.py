@@ -103,6 +103,29 @@ def _html_para_texto(html):
     return "\n".join(l for l in linhas if l)
 
 
+_POSSESS = {"nosso": "o", "nossa": "a", "nossos": "os", "nossas": "as",
+            "meu": "o", "minha": "a", "meus": "os", "minhas": "as"}
+
+
+def _limpar_primeira_pessoa(txt):
+    """A Stivali REVENDE (nao e a marca): remove 1a pessoa da descricao traduzida.
+    Se houver artigo/preposicao antes ('o nosso'), remove so o possessivo; se vier
+    solto ('Nosso'), vira artigo. Preserva maiuscula inicial."""
+    t = txt or ""
+    arts = (r"(o|a|os|as|do|da|dos|das|no|na|nos|nas|ao|aos|pelo|pela|pelos|pelas|"
+            r"um|uma|uns|umas)")
+    poss = r"(nossos|nossas|nosso|nossa|meus|minhas|meu|minha)"
+    # artigo/preposicao + possessivo -> mantem so o artigo
+    t = re.sub(arts + r"\s+" + poss, lambda m: m.group(1), t, flags=re.I)
+
+    # possessivo solto -> artigo correspondente
+    def repl(m):
+        w = m.group(0)
+        rep = _POSSESS.get(w.lower(), w)
+        return rep.capitalize() if w[0].isupper() else rep
+    return re.sub(r"\b" + poss + r"\b", repl, t, flags=re.I)
+
+
 _TRAD_CACHE = {}
 
 
@@ -586,6 +609,7 @@ def expandir_colecao(entry):
             if entry.get("descricao_from_source"):
                 bruto = _html_para_texto(prod.get("body_html") or "")
                 txt = traduzir(bruto) if (bruto and entry.get("traduzir", True)) else bruto
+                txt = _limpar_primeira_pessoa(txt)
                 descricao = txt.replace("\n", "<br>") if txt else desc_tpl.format(**ctx)
             else:
                 descricao = desc_tpl.format(**ctx)
