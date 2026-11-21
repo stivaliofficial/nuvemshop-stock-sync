@@ -1,0 +1,34 @@
+[
+  {
+    "shopify_collection": "https://eu.bape.com/collections/category-accessories-bags/products.json",
+    "include_tags": ["gender-women"],
+    "name_prefix": "BAPE",
+    "brand": "BAPE",
+    "marca_header": "BAPE",
+    "secao": "DETALHES",
+    "use_json_price": true,
+    "eur_mult": 6.5,
+    "eur_add": 2800,
+    "ignore_sold_out": false,
+    "descricao_from_source": true,
+    "traduzir": true,
+    "size_mode": "none",
+    "sizes": ["Único"],
+    "imagens_por_url": true,
+    "cor_da_pagina": true,
+    "cor_default": "",
+    "color_overrides": {},
+    "add_category_if_exists": true,
+    "category_id": 42228324,
+    "weight": 0.6,
+    "stock": 1,
+    "tags": ["bape", "a bathing ape", "bolsa", "bolsas", "feminino", "streetwear", "importado"],
+    "descricao_tpl": "{model}{cor_sp} da BAPE (A Bathing Ape) — bolsa original importada, pronta entrega na Stivali.",
+    "caimento_material": [
+      "Marca: BAPE (A Bathing Ape)",
+      "Importado · produto 100% original BAPE"
+    ],
+    "seo_title_tpl": "BAPE {model}{cor_sp} | Bolsa Original",
+    "seo_description_tpl": "Bolsa {model}{cor_sp} da BAPE (A Bathing Ape). Original, importada, em até 12x no cartão. Compre na Stivali com envio para todo o Brasil."
+  }
+]
