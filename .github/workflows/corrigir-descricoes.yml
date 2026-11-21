@@ -1,0 +1,27 @@
+name: Corrigir descricoes (3a pessoa)
+
+on:
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: 'Aplicar de verdade (desmarcado = so conta, nao altera)'
+        type: boolean
+        default: false
+
+jobs:
+  corrigir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Corrigir descricoes
+        env:
+          NUVEMSHOP_ACCESS_TOKEN: ${{ secrets.NUVEMSHOP_ACCESS_TOKEN }}
+        run: |
+          ARGS=""
+          [ "${{ inputs.aplicar }}" = "true" ] && ARGS="--aplicar"
+          python corrigir_descricoes.py $ARGS
