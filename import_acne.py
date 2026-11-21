@@ -114,21 +114,45 @@ def traduzir(texto, sl="en", tl="pt"):
         return ""
     if texto in _TRAD_CACHE:
         return _TRAD_CACHE[texto]
-    out = texto
+    q = texto[:4800]
+    # endpoint 1: translate_a/single (gtx) com ate 3 tentativas
+    for _tent in range(3):
+        try:
+            r = SESSION.get(
+                "https://translate.googleapis.com/translate_a/single",
+                params={"client": "gtx", "sl": sl, "tl": tl, "dt": "t", "q": q},
+                timeout=25)
+            if r.status_code == 200:
+                data = r.json()
+                juntado = "".join(seg[0] for seg in data[0] if seg and seg[0])
+                if juntado.strip():
+                    _TRAD_CACHE[texto] = juntado
+                    return juntado
+        except Exception:  # noqa
+            pass
+        time.sleep(1.5)
+    # endpoint 2 (alternativo): clients5
     try:
         r = SESSION.get(
-            "https://translate.googleapis.com/translate_a/single",
-            params={"client": "gtx", "sl": sl, "tl": tl, "dt": "t", "q": texto[:4800]},
+            "https://clients5.google.com/translate_a/t",
+            params={"client": "dict-chrome-ex", "sl": sl, "tl": tl, "q": q},
             timeout=25)
         if r.status_code == 200:
             data = r.json()
-            juntado = "".join(seg[0] for seg in data[0] if seg and seg[0])
+            juntado = ""
+            if isinstance(data, list):
+                for x in data:
+                    if isinstance(x, str):
+                        juntado += x
+                    elif isinstance(x, list) and x and isinstance(x[0], str):
+                        juntado += x[0]
             if juntado.strip():
-                out = juntado
+                _TRAD_CACHE[texto] = juntado
+                return juntado
     except Exception:  # noqa
-        out = texto
-    _TRAD_CACHE[texto] = out
-    return out
+        pass
+    _TRAD_CACHE[texto] = texto  # desiste -> mantem original (nunca inventa)
+    return texto
 
 
 # ------------------------------------------------- traducao de tamanhos (BR)
