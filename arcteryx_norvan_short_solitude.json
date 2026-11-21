@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ARC'TERYX Norvan Liner Short 7\" Solitude",
+    "brand": "Arc'teryx",
+    "marca_header": "ARC'TERYX",
+    "secao": "DETALHES",
+    "color": "Solitude / Stratus",
+    "sizes": ["PP", "2GG"],
+    "price_brl": 3150.0,
+    "images": [
+      "https://images.arcteryx.com/details/1350x1710/F26-X000009540-Norvan-Liner-Short-7-Solitude-Stratus-Front-View.jpg",
+      "https://images.arcteryx.com/details/1350x1710/F26-X000009540-Norvan-Liner-Short-7-Solitude-Stratus-Hover.jpg",
+      "https://images.arcteryx.com/details/1350x1710/F26-X000009540-Norvan-Liner-Short-7-Solitude-Stratus-Back-View.jpg",
+      "https://images.arcteryx.com/details/1350x1710/F26-X000009540-Norvan-Liner-Short-7-Solitude-Stratus-Waist-Detail.jpg",
+      "https://images.arcteryx.com/details/1350x1710/F26-X000009540-Norvan-Liner-Short-7-Solitude-Stratus-Fabric-Detail.jpg"
+    ],
+    "imagens_por_url": true,
+    "descricao": "Short de trail running com entrepernas de 7\" (18 cm) e cueca integrada que absorve o suor.",
+    "caimento_material": [
+      "Marca: Arc'teryx",
+      "Cor: Solitude / Stratus",
+      "Numeracao brasileira",
+      "Importado da Europa · produto 100% original Arc'teryx"
+    ],
+    "seo_title": "Arc'teryx Norvan Liner Short 7 Solitude | Original Importado",
+    "seo_description": "Norvan Liner Short 7\" da Arc'teryx na cor Solitude / Stratus. Short masculino original, importado, em ate 12x no cartao. Compre na Stivali.",
+    "tags": ["arcteryx", "arc'teryx", "calcas", "shorts", "masculino", "importado", "norvan-liner-short-7"],
+    "category_id": 42231038,
+    "weight": 0.6,
+    "stock": 1
+  }
+]
