@@ -157,7 +157,8 @@ def traduzir(texto, sl="en", tl="pt"):
 
 # ------------------------------------------------- traducao de tamanhos (BR)
 _TAM_LETRA = {
-    "xxs": "PP", "xs": "PP", "s": "P", "m": "M", "l": "G", "xl": "GG",
+    "3xs": "PPPP", "xxxs": "PPPP", "2xs": "PPP", "xxs": "PPP", "xs": "PP",
+    "s": "P", "m": "M", "l": "G", "xl": "GG",
     "xxl": "2GG", "2xl": "2GG", "xxxl": "3GG", "3xl": "3GG",
     "xxxxl": "4GG", "4xl": "4GG",
 }
