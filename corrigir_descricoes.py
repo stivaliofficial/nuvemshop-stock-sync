@@ -64,6 +64,12 @@ def main():
             desc = p.get("description") or {}
             if not isinstance(desc, dict):
                 continue
+            # SEGURANCA: so mexe em produtos criados pelo nosso importador
+            # (tem a assinatura do selo). Assim nao alteramos texto proprio
+            # da Stivali em produtos antigos (Dr. Martens etc.).
+            if not any("verificado pela nossa curadoria" in str(v)
+                       for v in desc.values()):
+                continue
             mudou_algum = {}
             tem_mudanca = False
             for lang, html in desc.items():
