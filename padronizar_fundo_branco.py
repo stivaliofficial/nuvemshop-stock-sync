@@ -38,7 +38,9 @@ Variáveis de ambiente:
 
 import base64
 import csv
+import glob
 import io
+import json
 import os
 import re
 import sys
@@ -300,6 +302,59 @@ def clarear_fundo_quente(arr: np.ndarray, bg: np.ndarray):
     out = arr.astype(np.float32) * (1 - m) + 255.0 * m
     return np.clip(np.rint(out), 0, 255).astype(np.uint8)
 
+
+
+# ----------------------------------------------------------------------------
+# Modo MATTING (recorte do produto + fundo branco puro) — ACAO=matting
+# Re-processa a partir das imagens ORIGINAIS da marca (JSONs de importação),
+# então conserta até as fotos que ficaram distorcidas em execuções anteriores.
+# ----------------------------------------------------------------------------
+def _chave_img(nome_arquivo: str) -> str:
+    """Normaliza o nome do arquivo de imagem para casar loja x original:
+    tira caminho, extensão, o hash/tamanho que a loja acrescenta, e pontuação."""
+    b = nome_arquivo.rsplit("/", 1)[-1]
+    b = re.sub(r"\.(jpg|jpeg|png|webp)$", "", b, flags=re.I)
+    b = re.sub(r"-[0-9a-f]{16,}.*$", "", b)      # remove hash + sufixos de tamanho da loja
+    b = re.sub(r"-\d{3,4}-\d{1,4}$", "", b)       # remove -1024-1024 / -480-0 resíduos
+    return re.sub(r"[^a-z0-9]", "", b.lower())
+
+
+def construir_mapa_originais() -> dict:
+    """Lê os JSONs arcteryx_*.json e mapeia chave(nome) -> URL original da marca."""
+    mapa = {}
+    for fn in sorted(glob.glob("arcteryx_*.json")):
+        try:
+            dados = json.load(open(fn, encoding="utf-8"))
+        except Exception:
+            continue
+        for prod in dados:
+            for u in prod.get("images", []) or []:
+                if isinstance(u, str) and u.startswith("http"):
+                    mapa.setdefault(_chave_img(u), u)
+    return mapa
+
+
+_MATTING_SESSION = None
+
+def matting_branco(data: bytes):
+    """Recorta o produto/modelo (matting) e compõe sobre BRANCO PURO.
+    Funciona em qualquer cor (peça clara, escura, com modelo) sem distorcer."""
+    global _MATTING_SESSION
+    from rembg import remove, new_session
+    if _MATTING_SESSION is None:
+        _MATTING_SESSION = new_session(os.environ.get("REMBG_MODEL", "u2net"))
+    img = carregar_rgb(data)
+    if os.environ.get("REMBG_ALPHA", "false").strip().lower() == "true":
+        rec = remove(img, session=_MATTING_SESSION, alpha_matting=True,
+                     alpha_matting_foreground_threshold=240,
+                     alpha_matting_background_threshold=15, alpha_matting_erode_size=3)
+    else:
+        rec = remove(img, session=_MATTING_SESSION)
+    if rec.mode != "RGBA":
+        rec = rec.convert("RGBA")
+    base = Image.new("RGBA", rec.size, (255, 255, 255, 255))
+    out = Image.alpha_composite(base, rec).convert("RGB")
+    return out
 
 
 def superficie_lum(lum):
@@ -699,6 +754,12 @@ def main():
     download = requests.Session()
     download.headers["User-Agent"] = USER_AGENT
 
+    global MAPA_ORIG
+    MAPA_ORIG = {}
+    if ACAO == "matting":
+        MAPA_ORIG = construir_mapa_originais()
+        print(f"   mapa de imagens originais: {len(MAPA_ORIG)} entradas")
+
     criados_desde = None
     if DIAS_RECENTES > 0:
         criados_desde = (datetime.now(timezone.utc) - timedelta(days=DIAS_RECENTES)).isoformat()
@@ -755,6 +816,52 @@ def main():
                 if src.startswith("//"):
                     src = "https:" + src
                 base = [pid, nome, marca, iid, pos]
+
+                if ACAO == "matting":
+                    if "stivali-mt-" in src:                       # já processada -> pula (idempotente)
+                        cont["ja_branco"] += 1
+                        w.writerow(base + ["ja_matting", "nenhuma", "", "", src, ""])
+                        continue
+                    orig_url = MAPA_ORIG.get(_chave_img(src))
+                    try:
+                        rr = download.get(orig_url or src, timeout=90)
+                        rr.raise_for_status()
+                        im_orig = carregar_rgb(rr.content)
+                        img_nova = matting_branco(rr.content)
+                        buf = io.BytesIO()
+                        img_nova.save(buf, format="JPEG", quality=92, optimize=True, subsampling=0)
+                        novo = buf.getvalue()
+                    except Exception as e:
+                        cont["erros"] += 1
+                        w.writerow(base + ["erro_matting", "nenhuma", "", "", src,
+                                           (("sem_original " if not orig_url else "") + str(e))[:200]])
+                        continue
+                    if cont["comparacoes"] < AMOSTRAS_COMPARACAO:
+                        salvar_comparacao(im_orig, img_nova, f"{OUT_DIR}/comparacoes/{pid}_{iid}.jpg")
+                        cont["comparacoes"] += 1
+                    if DRY_RUN:
+                        cont["corrigidas"] += 1
+                        w.writerow(base + ["matting", "SERIA_CORRIGIDA", "", "", src,
+                                           "orig" if orig_url else "sem_original->usa_loja"])
+                        continue
+                    try:
+                        nova = api.subir_imagem(pid, novo, pos, alt=img.get("alt"),
+                                                nome=f"stivali-mt-{pid}-{pos}.jpg")
+                        for v in variantes:
+                            if v.get("image_id") == iid:
+                                api.trocar_imagem_variante(pid, v["id"], nova["id"])
+                                v["image_id"] = nova["id"]
+                        api.apagar_imagem(pid, iid)
+                        img["id"] = nova["id"]
+                        mudou = True
+                        cont["corrigidas"] += 1
+                        w.writerow(base + ["matting", "CORRIGIDA", "", "", src,
+                                           f"nova_image_id={nova['id']}" + ("" if orig_url else " | sem_original_usou_loja")])
+                    except Exception as e:
+                        cont["erros"] += 1
+                        w.writerow(base + ["matting", "ERRO_AO_TROCAR", "", "", src, str(e)[:200]])
+                    continue
+
                 try:
                     r = download.get(src, timeout=60)
                     r.raise_for_status()
