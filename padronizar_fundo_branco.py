@@ -42,6 +42,7 @@ import io
 import os
 import re
 import sys
+from collections import deque
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -209,37 +210,94 @@ def analisar(arr: np.ndarray):
     # Modo fundo quente (opt-in): fundo creme/bege claro e uniforme também é corrigível.
     # Mantém a trava de produto claro (prod_claro) para não "comer" peças claras sobre creme,
     # e usa tem_chao_claro para não confundir produto escuro na borda de baixo com chão.
-    if (FUNDO_QUENTE and not prod_claro and fundo_creme(fundo)
-            and fundo.min() >= CINZA_MIN_QUENTE and uniformidade >= UNIF_MIN_QUENTE
-            and not tem_chao_claro(arr)):
+    # v4: porta de entrada ampla — basta ter borda creme/quente clara e razoavelmente
+    # uniforme. A decisão fina (corrigir x pular peça clara) fica em clarear_fundo_quente,
+    # que usa barreira de cor quente + cor do próprio produto e devolve None quando é risco.
+    if (FUNDO_QUENTE and fundo_creme(fundo)
+            and fundo.min() >= CINZA_MIN_QUENTE and uniformidade >= UNIF_MIN_QUENTE):
         return "fundo_quente", fundo, fundo, uniformidade
     return "fundo_nao_padrao", fundo, fundo, uniformidade
 
 
+def _mascara_fundo_quente(small: np.ndarray, bg: np.ndarray):
+    """Segmenta o fundo creme ligado à borda com BARREIRA DE COR QUENTE.
+    O fundo da Arc'teryx é quente (R>B); peças cinza/frias/claras são neutras.
+    O flood (a partir da borda) só entra em pixel elegível = creme/quente, e só
+    atravessa para o vizinho se a luminância não der um degrau (contorno da peça).
+    Assim o branco para na borda da peça cinza-clara em vez de 'comê-la'.
+    Trabalha em versão reduzida (rápido); a máscara é reampliada depois."""
+    a = small.astype(np.int16)
+    R, G, B = a[..., 0], a[..., 1], a[..., 2]
+    mn = a.min(axis=2); mx = a.max(axis=2)
+    lum = (0.299 * R + 0.587 * G + 0.114 * B).astype(np.float32)
+    warm = (R - B) >= 6
+    creamish = (R >= G - 6) & (G >= B - 6) & (mn >= 150) & ((mx - mn) <= 60) & ((R - B) >= 8)
+    cheb = np.abs(a - bg.astype(np.int16)).max(axis=2)
+    elig = creamish | ((cheb <= 22) & warm)            # só fundo quente; cinza/frio bloqueia
+    h, w = elig.shape
+    mask = np.zeros((h, w), bool)
+    dq = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if elig[y, x] and not mask[y, x]:
+                mask[y, x] = True; dq.append((y, x))
+    for y in range(h):
+        for x in (0, w - 1):
+            if elig[y, x] and not mask[y, x]:
+                mask[y, x] = True; dq.append((y, x))
+    while dq:
+        y, x = dq.popleft(); lyx = lum[y, x]
+        if x > 0 and not mask[y, x-1] and elig[y, x-1] and abs(lum[y, x-1]-lyx) <= 16:
+            mask[y, x-1] = True; dq.append((y, x-1))
+        if x < w-1 and not mask[y, x+1] and elig[y, x+1] and abs(lum[y, x+1]-lyx) <= 16:
+            mask[y, x+1] = True; dq.append((y, x+1))
+        if y > 0 and not mask[y-1, x] and elig[y-1, x] and abs(lum[y-1, x]-lyx) <= 16:
+            mask[y-1, x] = True; dq.append((y-1, x))
+        if y < h-1 and not mask[y+1, x] and elig[y+1, x] and abs(lum[y+1, x]-lyx) <= 16:
+            mask[y+1, x] = True; dq.append((y+1, x))
+    return mask, lum
+
+
 def clarear_fundo_quente(arr: np.ndarray, bg: np.ndarray):
-    """Branqueamento para fundo CREME/QUENTE (modo FUNDO_QUENTE):
-    segmenta o fundo (pixels perto da cor do fundo, ligados à borda) e o preenche
-    de BRANCO PURO com borda suave — resultado limpo, sem manchas da divisão.
-    Protege peças claras: se muita parte da peça está perto do fundo (clara), devolve
-    None e a foto vai para 'revisar manual' (não corrige, não danifica)."""
-    a = arr.astype(np.float32)
-    bgf = bg.astype(np.float32)
-    dist = np.abs(a - bgf).max(axis=2)                 # distância (Chebyshev) à cor do fundo
-    cand = dist <= TOL_QUENTE
-    lab, _ = ndimage.label(cand)                       # componentes do candidato a fundo
-    borda = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
-    borda = borda[borda != 0]
-    mask = np.isin(lab, borda)                          # só o que está ligado à borda = fundo
-    prod = ~mask
-    nprod = int(prod.sum())
-    if nprod == 0:
-        return None
-    risco = float(((dist <= 45) & prod).sum()) / nprod  # % da peça com tom perto do fundo
+    """Branqueamento para fundo CREME/QUENTE (modo FUNDO_QUENTE), versão v4.
+    1) Segmenta o fundo com barreira de cor quente (preserva peças cinza/claras).
+    2) Decide se corrige pela COR DO PRÓPRIO PRODUTO: escuro OU colorido = separa
+       com segurança -> corrige; produto claro e sem cor (bege/branco/creme) ->
+       devolve None (vai para revisão manual, não danifica).
+    Rosto/pele e camiseta interna não enganam: a mediana do produto de uma peça
+    escura continua escura."""
+    h, w, _ = arr.shape
+    W2 = 420
+    if w > W2:
+        hh = max(1, round(h * W2 / w))
+        small = np.asarray(Image.fromarray(arr).resize((W2, hh), Image.BILINEAR))
+    else:
+        small = arr
+    bgi = np.asarray(bg).astype(np.int16)
+    mask, lum = _mascara_fundo_quente(small, bgi)
+    N = mask.size
     mf = float(mask.mean())
-    if risco > RISCO_MAX_QUENTE or mf < 0.12 or mf > 0.92:
-        return None                                     # peça clara / segmentação ruim -> pula
-    m = ndimage.gaussian_filter(mask.astype(np.float32), 1.5)[..., None]  # borda suave
-    out = a * (1 - m) + 255.0 * m
+    a = small.astype(np.int16)
+    # vazamento neutro: máscara pegou pixel neutro (não quente) que não é branco -> comeu peça
+    neutral = mask & ((a[..., 0] - a[..., 2]) < 6) & (lum > 110) & (lum < 238)
+    neutral_leak = float(neutral.sum()) / N
+    prod = ~mask
+    if int(prod.sum()) == 0:
+        return None
+    med_l = float(np.median(lum[prod]))
+    chroma = (a.max(axis=2) - a.min(axis=2))
+    med_c = float(np.median(chroma[prod]))
+    corrige = (0.12 <= mf <= 0.90) and (neutral_leak < 0.02) and (med_l < 155 or med_c > 26)
+    if not corrige:
+        return None                                    # peça clara/duvidosa -> revisar manual
+    if small.shape[:2] != arr.shape[:2]:
+        mfull = np.asarray(Image.fromarray((mask * 255).astype(np.uint8))
+                           .resize((w, h), Image.BILINEAR)).astype(np.float32) / 255.0
+    else:
+        mfull = mask.astype(np.float32)
+    mfull = ndimage.gaussian_filter(mfull, 1.5)        # borda suave
+    m = mfull[..., None]
+    out = arr.astype(np.float32) * (1 - m) + 255.0 * m
     return np.clip(np.rint(out), 0, 255).astype(np.uint8)
 
 
