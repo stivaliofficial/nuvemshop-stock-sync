@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       acao:
-        description: "branquear = fundo branco | reordenar = capa/hover brancos | reparar = refaz fotos da lista reparar.csv"
+        description: "branquear = fundo branco | matting = recorta produto + branco (100%) | reordenar | reparar"
         type: choice
-        options: ["branquear", "reordenar", "reparar"]
+        options: ["branquear", "matting", "reordenar", "reparar"]
         default: "branquear"
       modo_teste:
         description: "Modo teste (não altera a loja). Use true primeiro!"
@@ -56,6 +56,9 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pillow numpy scipy requests
+      - name: Instalar rembg (só quando ação = matting)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.acao == 'matting'
+        run: pip install "rembg[cpu]==2.0.59" onnxruntime
 
       # ---------- Execução manual ----------
       - name: Baixar backups das fotos originais (só no reparar)
