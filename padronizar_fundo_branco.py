@@ -96,6 +96,8 @@ FUNDO_QUENTE = os.environ.get("FUNDO_QUENTE", "false").strip().lower() == "true"
 CINZA_MIN_QUENTE = int(os.environ.get("CINZA_MIN_QUENTE", "160") or 160)   # fundo claro o bastante
 CROMA_MAX_QUENTE = int(os.environ.get("CROMA_MAX_QUENTE", "50") or 50)     # tolera o tom quente (R-B)
 UNIF_MIN_QUENTE = float(os.environ.get("UNIF_MIN_QUENTE", "0.45") or 0.45) # borda razoavelmente uniforme
+TOL_QUENTE = int(os.environ.get("TOL_QUENTE", "26") or 26)                 # distância de cor p/ ser "fundo"
+RISCO_MAX_QUENTE = float(os.environ.get("RISCO_MAX_QUENTE", "0.12") or 0.12)  # se a peça tem muito tom perto do fundo (clara), PULA
 
 
 # ----------------------------------------------------------------------------
@@ -210,8 +212,35 @@ def analisar(arr: np.ndarray):
     if (FUNDO_QUENTE and not prod_claro and fundo_creme(fundo)
             and fundo.min() >= CINZA_MIN_QUENTE and uniformidade >= UNIF_MIN_QUENTE
             and not tem_chao_claro(arr)):
-        return "fundo_cinza", fundo, fundo, uniformidade
+        return "fundo_quente", fundo, fundo, uniformidade
     return "fundo_nao_padrao", fundo, fundo, uniformidade
+
+
+def clarear_fundo_quente(arr: np.ndarray, bg: np.ndarray):
+    """Branqueamento para fundo CREME/QUENTE (modo FUNDO_QUENTE):
+    segmenta o fundo (pixels perto da cor do fundo, ligados à borda) e o preenche
+    de BRANCO PURO com borda suave — resultado limpo, sem manchas da divisão.
+    Protege peças claras: se muita parte da peça está perto do fundo (clara), devolve
+    None e a foto vai para 'revisar manual' (não corrige, não danifica)."""
+    a = arr.astype(np.float32)
+    bgf = bg.astype(np.float32)
+    dist = np.abs(a - bgf).max(axis=2)                 # distância (Chebyshev) à cor do fundo
+    cand = dist <= TOL_QUENTE
+    lab, _ = ndimage.label(cand)                       # componentes do candidato a fundo
+    borda = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    borda = borda[borda != 0]
+    mask = np.isin(lab, borda)                          # só o que está ligado à borda = fundo
+    prod = ~mask
+    nprod = int(prod.sum())
+    if nprod == 0:
+        return None
+    risco = float(((dist <= 45) & prod).sum()) / nprod  # % da peça com tom perto do fundo
+    mf = float(mask.mean())
+    if risco > RISCO_MAX_QUENTE or mf < 0.12 or mf > 0.92:
+        return None                                     # peça clara / segmentação ruim -> pula
+    m = ndimage.gaussian_filter(mask.astype(np.float32), 1.5)[..., None]  # borda suave
+    out = a * (1 - m) + 255.0 * m
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
 
 
 
@@ -307,6 +336,19 @@ def processar_bytes(data: bytes):
             buf = io.BytesIO()
             img_nova.save(buf, format="JPEG", quality=93, optimize=True, subsampling=0)
             return "corrigir", info, buf.getvalue(), img, img_nova
+    if classe == "fundo_quente":
+        novo = clarear_fundo_quente(arr, fundo)
+        if novo is None:                       # peça clara / segmentação ruim -> revisar manual
+            return "fundo_nao_padrao", info, None, img, None
+        borda_nova = np.median(pixels_da_borda(novo), axis=0)
+        if borda_nova.min() < 250:
+            info["obs"] = f"borda ficou {borda_nova.astype(int).tolist()}"
+            return "falhou_verificacao", info, None, img, Image.fromarray(novo)
+        info["obs"] = "fundo quente -> branco"
+        img_nova = Image.fromarray(novo)
+        buf = io.BytesIO()
+        img_nova.save(buf, format="JPEG", quality=93, optimize=True, subsampling=0)
+        return "corrigir", info, buf.getvalue(), img, img_nova
     if classe != "fundo_cinza":
         return classe, info, None, img, None
 
