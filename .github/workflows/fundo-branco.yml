@@ -17,6 +17,11 @@ on:
         description: "Marca (ex: Martens). Vazio = todas"
         required: false
         default: ""
+      fundo_quente:
+        description: "Branquear fundo CREME/QUENTE (ex: Arc'teryx). Só ligue com uma marca selecionada!"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
       limite_produtos:
         description: "Máximo de produtos (0 = todos)"
         required: false
@@ -69,6 +74,7 @@ jobs:
           ACAO: ${{ github.event.inputs.acao }}
           DRY_RUN: ${{ github.event.inputs.modo_teste }}
           MARCA: ${{ github.event.inputs.marca }}
+          FUNDO_QUENTE: ${{ github.event.inputs.fundo_quente }}
           LIMITE_PRODUTOS: ${{ github.event.inputs.limite_produtos }}
           FOTOS_POR_PRODUTO: ${{ github.event.inputs.fotos_por_produto }}
           DIAS_RECENTES: ${{ github.event.inputs.dias_recentes }}
