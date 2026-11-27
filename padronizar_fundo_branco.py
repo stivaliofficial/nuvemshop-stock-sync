@@ -93,10 +93,10 @@ CLAREAR_ATE = 248         # ... até virar branco puro a partir deste valor (sem
 # fundo CREME/BEGE claro e uniforme (ex: Arc'teryx) como corrigível. Sem FUNDO_QUENTE=true
 # o comportamento é idêntico ao anterior (nenhuma outra marca é afetada).
 FUNDO_QUENTE = os.environ.get("FUNDO_QUENTE", "false").strip().lower() == "true"
-CINZA_MIN_QUENTE = int(os.environ.get("CINZA_MIN_QUENTE", "160") or 160)   # fundo claro o bastante
+CINZA_MIN_QUENTE = int(os.environ.get("CINZA_MIN_QUENTE", "130") or 130)   # fundo claro o bastante (v3: inclui creme sombreado)
 CROMA_MAX_QUENTE = int(os.environ.get("CROMA_MAX_QUENTE", "50") or 50)     # tolera o tom quente (R-B)
-UNIF_MIN_QUENTE = float(os.environ.get("UNIF_MIN_QUENTE", "0.45") or 0.45) # borda razoavelmente uniforme
-TOL_QUENTE = int(os.environ.get("TOL_QUENTE", "26") or 26)                 # distância de cor p/ ser "fundo"
+UNIF_MIN_QUENTE = float(os.environ.get("UNIF_MIN_QUENTE", "0.40") or 0.40) # borda razoavelmente uniforme
+TOL_QUENTE = int(os.environ.get("TOL_QUENTE", "34") or 34)                 # distância de cor p/ ser "fundo" (v3: creme com variação)
 RISCO_MAX_QUENTE = float(os.environ.get("RISCO_MAX_QUENTE", "0.12") or 0.12)  # se a peça tem muito tom perto do fundo (clara), PULA
 
 
@@ -151,7 +151,7 @@ def tem_chao_claro(arr: np.ndarray) -> bool:
 def fundo_creme(f) -> bool:
     """Fundo bege/creme claro e neutro-quente (R>=G>=B, claro, não é cor saturada)."""
     r, g, bb = float(f[0]), float(f[1]), float(f[2])
-    return (r >= g >= bb) and bb >= 150 and (r - bb) <= CROMA_MAX_QUENTE
+    return (r >= g >= bb) and bb >= 110 and (r - bb) <= CROMA_MAX_QUENTE
 
 POLIR_DE, POLIR_ATE = 208.0, 244.0
 
