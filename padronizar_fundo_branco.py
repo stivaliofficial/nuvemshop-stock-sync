@@ -40,6 +40,7 @@ import base64
 import csv
 import io
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -55,7 +56,13 @@ from scipy import ndimage
 TOKEN = os.environ.get("NUVEMSHOP_ACCESS_TOKEN", "")
 STORE_ID = os.environ.get("NUVEMSHOP_STORE_ID", "3277373")
 DRY_RUN = os.environ.get("DRY_RUN", "true").strip().lower() != "false"
-MARCA = os.environ.get("MARCA", "").strip().lower()
+def _norm_marca(s):
+    """Normaliza nome de marca para comparar: minúsculas, sem pontuação/espaços.
+    Assim 'arcteryx' casa com 'Arc'teryx' e 'dr martens' casa com 'Dr. Martens'."""
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+MARCA = _norm_marca(os.environ.get("MARCA", ""))
 LIMITE_PRODUTOS = int(os.environ.get("LIMITE_PRODUTOS", "0") or 0)
 DIAS_RECENTES = int(os.environ.get("DIAS_RECENTES", "0") or 0)
 AMOSTRAS_COMPARACAO = int(os.environ.get("AMOSTRAS_COMPARACAO", "80") or 80)
@@ -585,7 +592,7 @@ def main():
             parou_por_prazo = True
             break
         marca = marca_produto(p)
-        if MARCA and MARCA not in marca.lower():
+        if MARCA and MARCA not in _norm_marca(marca):
             continue
         if LIMITE_PRODUTOS and cont["produtos"] >= LIMITE_PRODUTOS:
             break
