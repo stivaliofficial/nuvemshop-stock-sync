@@ -89,6 +89,14 @@ GRADIENTE_MAX = 3.0       # o fundo/sombra só "escorre" por áreas lisas; conto
 CLAREAR_DE = 226          # depois de clarear, tons do fundo acima disso vão suavemente
 CLAREAR_ATE = 248         # ... até virar branco puro a partir deste valor (sem "anel" na sombra)
 
+# Modo "fundo quente" (OPT-IN, padrão desligado): além do cinza neutro, aceita também
+# fundo CREME/BEGE claro e uniforme (ex: Arc'teryx) como corrigível. Sem FUNDO_QUENTE=true
+# o comportamento é idêntico ao anterior (nenhuma outra marca é afetada).
+FUNDO_QUENTE = os.environ.get("FUNDO_QUENTE", "false").strip().lower() == "true"
+CINZA_MIN_QUENTE = int(os.environ.get("CINZA_MIN_QUENTE", "160") or 160)   # fundo claro o bastante
+CROMA_MAX_QUENTE = int(os.environ.get("CROMA_MAX_QUENTE", "50") or 50)     # tolera o tom quente (R-B)
+UNIF_MIN_QUENTE = float(os.environ.get("UNIF_MIN_QUENTE", "0.45") or 0.45) # borda razoavelmente uniforme
+
 
 # ----------------------------------------------------------------------------
 # Processamento de imagem
@@ -123,6 +131,25 @@ def tem_chao(arr: np.ndarray) -> bool:
     lados = np.median(np.concatenate([arr[h // 3: 2 * h // 3, :b].reshape(-1, 3),
                                       arr[h // 3: 2 * h // 3, -b:].reshape(-1, 3)]), axis=0)
     return float(np.abs(baixo.astype(float) - lados.astype(float)).max()) > 14
+
+
+def tem_chao_claro(arr: np.ndarray) -> bool:
+    """Como tem_chao, mas só conta como 'chão'/plano de fundo quando a faixa de baixo
+    AINDA É CLARA (outro plano claro, tipo um piso) e difere das laterais. Produto escuro
+    encostando na borda de baixo NÃO é chão — evita o falso-positivo do modo fundo quente."""
+    h, w, _ = arr.shape
+    b = max(2, int(min(h, w) * BORDA_PCT))
+    baixo = np.median(arr[-b:, w // 4: 3 * w // 4].reshape(-1, 3), axis=0)
+    lados = np.median(np.concatenate([arr[h // 3: 2 * h // 3, :b].reshape(-1, 3),
+                                      arr[h // 3: 2 * h // 3, -b:].reshape(-1, 3)]), axis=0)
+    return (float(baixo.min()) >= 150
+            and float(np.abs(baixo.astype(float) - lados.astype(float)).max()) > 14)
+
+
+def fundo_creme(f) -> bool:
+    """Fundo bege/creme claro e neutro-quente (R>=G>=B, claro, não é cor saturada)."""
+    r, g, bb = float(f[0]), float(f[1]), float(f[2])
+    return (r >= g >= bb) and bb >= 150 and (r - bb) <= CROMA_MAX_QUENTE
 
 POLIR_DE, POLIR_ATE = 208.0, 244.0
 
@@ -167,13 +194,22 @@ def analisar(arr: np.ndarray):
     # o produto tem quase o mesmo tom do fundo e branquear apagaria o produto -> não mexe.
     dif = np.abs(arr.astype(np.int16) - fundo.astype(np.int16)).max(axis=2)
     prod = arr[dif > 10].astype(np.int16)
+    prod_claro = False
     if len(prod) > 50:
         lum_prod = float(np.median(prod.mean(axis=1)))
         croma_prod = float(np.median(prod.max(axis=1) - prod.min(axis=1)))
         if lum_prod >= float(fundo.mean()) - 12 and croma_prod <= 9:
+            prod_claro = True
             chao = True
     if (fundo.min() >= CINZA_MIN and croma <= CROMA_MAX and uniformidade >= UNIFORMIDADE_MIN
             and not chao):
+        return "fundo_cinza", fundo, fundo, uniformidade
+    # Modo fundo quente (opt-in): fundo creme/bege claro e uniforme também é corrigível.
+    # Mantém a trava de produto claro (prod_claro) para não "comer" peças claras sobre creme,
+    # e usa tem_chao_claro para não confundir produto escuro na borda de baixo com chão.
+    if (FUNDO_QUENTE and not prod_claro and fundo_creme(fundo)
+            and fundo.min() >= CINZA_MIN_QUENTE and uniformidade >= UNIF_MIN_QUENTE
+            and not tem_chao_claro(arr)):
         return "fundo_cinza", fundo, fundo, uniformidade
     return "fundo_nao_padrao", fundo, fundo, uniformidade
 
