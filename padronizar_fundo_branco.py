@@ -319,15 +319,31 @@ def _chave_img(nome_arquivo: str) -> str:
     return re.sub(r"[^a-z0-9]", "", b.lower())
 
 
-def construir_mapa_originais() -> dict:
-    """Lê os JSONs arcteryx_*.json e mapeia chave(nome) -> URL original da marca."""
+_JSON_IGNORAR = {"config.json", "brand_config.json", "package.json", "package-lock.json"}
+
+def construir_mapa_originais(marca_norm: str = "") -> dict:
+    """Mapeia chave(nome do arquivo) -> URL original da marca, lendo os JSONs de
+    importação. GENÉRICO: serve qualquer marca. Se MARCA for informada, lê só os
+    JSONs daquela marca (ex: miista_*.json); senão, lê todos. Útil para re-processar
+    a partir da foto ORIGINAL (alta resolução) quando o nome do arquivo na loja
+    ainda carrega o nome de origem. Quando não casar, o matting usa a foto da loja."""
+    arquivos = [f for f in sorted(glob.glob("*.json")) if os.path.basename(f) not in _JSON_IGNORAR]
+    if marca_norm:
+        da_marca = [f for f in arquivos
+                    if re.split(r"[_.]", os.path.basename(f))[0].lower() in marca_norm]
+        if da_marca:
+            arquivos = da_marca
     mapa = {}
-    for fn in sorted(glob.glob("arcteryx_*.json")):
+    for fn in arquivos:
         try:
             dados = json.load(open(fn, encoding="utf-8"))
         except Exception:
             continue
+        if not isinstance(dados, list):
+            continue
         for prod in dados:
+            if not isinstance(prod, dict):
+                continue
             for u in prod.get("images", []) or []:
                 if isinstance(u, str) and u.startswith("http"):
                     mapa.setdefault(_chave_img(u), u)
@@ -757,8 +773,8 @@ def main():
     global MAPA_ORIG
     MAPA_ORIG = {}
     if ACAO == "matting":
-        MAPA_ORIG = construir_mapa_originais()
-        print(f"   mapa de imagens originais: {len(MAPA_ORIG)} entradas")
+        MAPA_ORIG = construir_mapa_originais(MARCA)
+        print(f"   mapa de imagens originais: {len(MAPA_ORIG)} entradas (marca: {MARCA or 'todas'})")
 
     criados_desde = None
     if DIAS_RECENTES > 0:
